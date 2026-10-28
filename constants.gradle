@@ -1,0 +1,9 @@
+project.ext {
+    javaVersion = JavaVersion.VERSION_17
+
+    minSdkVersion = 23
+    compileSdkVersion = 36
+    targetSdkVersion = 36
+
+    media3Version = '1.4.1'
+}

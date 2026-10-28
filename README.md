@@ -1,0 +1,61 @@
+# Televe
+
+Televe 是面向 Android 手机、平板和电视的 IPTV 直播应用。
+
+- 包名：`net.yonsm.televe`
+- 最低系统版本：Android 6.0（API 23）
+- 编译和目标 SDK：36
+- 版本：1.0.0
+- CPU 架构：`armeabi-v7a`、`arm64-v8a`
+
+## 功能
+
+- 读取 M3U 和 TXT 频道列表，切换直播源、刷新列表。
+- 本地缓存直播源和频道列表，记住上次使用的直播源与频道。
+- 遥控器上下键切台，确认键或点击画面打开频道列表。
+- 直播源菜单支持高清筛选、默认比例、16:9 和 4:3。
+- 遥控器右键保存截图到 `Pictures/Televe`；Android 9 及以下需授予存储权限。
+- 长按播放画面将频道收藏到电视桌面；退出时可发布“继续观看”推荐。推荐功能取决于电视桌面支持。
+- 手机桌面和 Android TV 启动器均可直接启动应用。
+
+默认直播源地址定义在 `internal.playlist.PlaylistRepository.DEFAULT_URL`。列表优先使用本地缓存，菜单中的刷新操作重新请求源列表，手动选择直播源会刷新该源的频道列表。
+
+## 项目结构
+
+```text
+app/                 应用入口、频道界面、电视推荐与截图
+  src/main/java/
+    internal/playlist/  频道模型、列表解析与缓存
+library/             播放器、网络、图片缓存与必要的界面工具
+```
+
+本仓库包含完整源码与 Gradle Wrapper，可以单独检出、构建和发布。两个模块均由本仓库维护，不需要其他应用仓库或共享目录。
+
+## 构建
+
+需要 JDK 21、Android SDK 36。通过 Android Studio 打开仓库根目录，或在 `local.properties` 配置本机 `sdk.dir` 后执行：
+
+```sh
+./gradlew :app:assembleDebug
+./gradlew :app:assembleRelease
+./gradlew :app:testDebugUnitTest
+```
+
+产物位于 `app/build/outputs/apk/debug/Televe.apk` 和 `app/build/outputs/apk/release/Televe.apk`。
+
+签名参数从不纳入版本管理的 `local.properties` 读取：
+
+```properties
+RELEASE_STORE_FILE=/path/to/release.keystore
+RELEASE_STORE_PASSWORD=your-password
+RELEASE_KEY_ALIAS=your-alias
+RELEASE_KEY_PASSWORD=your-key-password
+```
+
+未配置签名参数时使用 Android 默认调试签名。也可使用同名的 `DEBUG_*` 参数配置本机签名；配置 `RELEASE_*` 后，调试包和发布包均使用该签名。正式发布前应配置并妥善保管独立的发布密钥。
+
+应用的设置、列表缓存和电视推荐属于自身包名。其他应用的数据不会自动导入。
+
+## 使用范围
+
+本项目仅用于个人学习与研究用途。

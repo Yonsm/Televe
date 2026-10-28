@@ -1,0 +1,15 @@
+<resources>
+    <string name="app_name">电视直播</string>
+    <string name="about">关于</string>
+    <string name="about_version">版本 %1$s</string>
+    <string name="about_message">面向 Android 手机、平板和电视的 IPTV 直播应用。</string>
+    <string name="action_tv_favorite">收藏到电视</string>
+    <string name="aspect_ratio">长宽比</string>
+    <string name="aspect_ratio_default">默认</string>
+    <string name="exit_app">退出</string>
+    <string name="only_hd">只列高清</string>
+    <string name="press_again_exit">再按一次退出</string>
+    <string name="refresh_lists">刷新源</string>
+    <string name="snapshot_saved">已保存截图：%1$s</string>
+    <string name="snapshot_failed">截图失败：%1$s</string>
+</resources>

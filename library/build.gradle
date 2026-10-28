@@ -1,0 +1,51 @@
+plugins {
+    id 'com.android.library'
+}
+
+apply from: '../constants.gradle'
+
+android {
+    namespace 'net.yonsm.televe.library'
+    compileSdk project.ext.compileSdkVersion
+
+    compileOptions {
+        sourceCompatibility project.ext.javaVersion
+        targetCompatibility project.ext.javaVersion
+    }
+
+    defaultConfig {
+        minSdk project.ext.minSdkVersion
+        targetSdk project.ext.targetSdkVersion
+    }
+
+    buildTypes {
+        debug {
+            minifyEnabled false
+        }
+        release {
+            // 不在 library 单独混淆：library 的 API 会在 app 的 R8 中统一混淆，
+            // 避免单独 R8 混淆 public API 后 app 引用断裂（missing class）。
+            minifyEnabled false
+        }
+    }
+
+    lint {
+        abortOnError false
+    }
+}
+
+dependencies {
+    // AndroidX
+    implementation 'androidx.annotation:annotation:1.7.1'
+    implementation 'androidx.appcompat:appcompat:1.7.0'
+
+    // GIF 支持
+    implementation 'pl.droidsonroids.gif:android-gif-drawable:1.2.32'
+
+    // 媒体播放
+    implementation 'androidx.media3:media3-exoplayer:' + project.ext.media3Version
+    implementation 'androidx.media3:media3-common:' + project.ext.media3Version
+    implementation 'androidx.media3:media3-datasource:' + project.ext.media3Version
+
+    testImplementation 'junit:junit:4.13.2'
+}

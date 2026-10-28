@@ -1,0 +1,17 @@
+<resources>
+    <string name="app_name">Televe</string>
+    <string name="about">About</string>
+    <string name="about_version">Version %1$s</string>
+    <string name="about_message">An IPTV live player for Android phones, tablets and TVs.</string>
+    <string name="action_tv_favorite">Favorite</string>
+    <string name="aspect_ratio">Aspect ratio</string>
+    <string name="aspect_ratio_default">Default</string>
+    <string name="aspect_ratio_16_9" translatable="false">16:9</string>
+    <string name="aspect_ratio_4_3" translatable="false">4:3</string>
+    <string name="exit_app">Exit</string>
+    <string name="only_hd">Only HD</string>
+    <string name="press_again_exit">Press back again to exit</string>
+    <string name="refresh_lists">Refresh</string>
+    <string name="snapshot_saved">Saved snapshot: %1$s</string>
+    <string name="snapshot_failed">Snapshot failed: %1$s</string>
+</resources>

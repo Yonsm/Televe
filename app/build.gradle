@@ -1,0 +1,114 @@
+plugins {
+    id 'com.android.application'
+}
+
+apply from: '../constants.gradle'
+
+android {
+    namespace 'net.yonsm.televe'
+    compileSdk project.ext.compileSdkVersion
+
+    compileOptions {
+        sourceCompatibility project.ext.javaVersion
+        targetCompatibility project.ext.javaVersion
+    }
+
+    defaultConfig {
+        applicationId "net.yonsm.televe"
+        minSdk project.ext.minSdkVersion
+        targetSdk project.ext.targetSdkVersion
+        versionCode 1
+        versionName '1.0.0'
+
+        ndk {
+            // 仅打包 arm 32/64，减小 APK 体积（符合架构要求与包大小控制）
+            abiFilters 'armeabi-v7a', 'arm64-v8a'
+        }
+    }
+
+    // 签名密钥一律从 local.properties(已 gitignore)读取，gradle 文件不存任何明文密码。
+    // DEBUG_*  缺失时回退 AGP 默认 debug 签名(自动生成 debug.keystore)。
+    // RELEASE_* 缺失时回退 DEBUG_* 配置(即 debug/release 共用同一密钥)。
+    def localProps = new Properties()
+    def localFile = rootProject.file('local.properties')
+    if (localFile.exists()) {
+        localProps.load(new FileInputStream(localFile))
+    }
+    def hasDebugSigning = localProps.getProperty('DEBUG_STORE_FILE') != null
+    def hasReleaseSigning = localProps.getProperty('RELEASE_STORE_FILE') != null
+
+    signingConfigs {
+        debug {
+            if (hasDebugSigning) {
+                storeFile file(localProps.getProperty('DEBUG_STORE_FILE'))
+                storePassword localProps.getProperty('DEBUG_STORE_PASSWORD')
+                keyAlias localProps.getProperty('DEBUG_KEY_ALIAS')
+                keyPassword localProps.getProperty('DEBUG_KEY_PASSWORD')
+            }
+        }
+        release {
+            // 优先用 RELEASE_*；缺失则复用 DEBUG_* (共用密钥)
+            def prefix = hasReleaseSigning ? 'RELEASE' : 'DEBUG'
+            if (hasReleaseSigning || hasDebugSigning) {
+                storeFile file(localProps.getProperty(prefix + '_STORE_FILE'))
+                storePassword localProps.getProperty(prefix + '_STORE_PASSWORD')
+                keyAlias localProps.getProperty(prefix + '_KEY_ALIAS')
+                keyPassword localProps.getProperty(prefix + '_KEY_PASSWORD')
+            }
+        }
+    }
+
+    buildTypes {
+        debug {
+            jniDebuggable true
+            minifyEnabled false
+            multiDexEnabled true
+            proguardFiles 'proguard-rules.pro', getDefaultProguardFile('proguard-android-optimize.txt')
+            // 配了 RELEASE_* 时，debug 也用 release 签名；否则回退 debug 签名
+            signingConfig hasReleaseSigning ? signingConfigs.release : signingConfigs.debug
+        }
+        release {
+            shrinkResources true
+            minifyEnabled true
+            proguardFiles 'proguard-rules.pro', getDefaultProguardFile('proguard-android-optimize.txt')
+            // 默认共用 debug 签名；配了 RELEASE_* 才用独立 release 签名
+            signingConfig hasReleaseSigning ? signingConfigs.release : signingConfigs.debug
+        }
+    }
+
+    buildFeatures {
+        buildConfig true
+    }
+
+    lint {
+        abortOnError false
+    }
+}
+
+androidComponents {
+    onVariants(selector().all()) { variant ->
+        variant.outputs.each { output ->
+            output.outputFileName.set("Televe.apk")
+        }
+    }
+}
+
+dependencies {
+    implementation project(':library')
+
+    // AndroidX
+    implementation 'androidx.appcompat:appcompat:1.7.0'
+    implementation 'androidx.activity:activity:1.7.0'
+    implementation 'androidx.core:core:1.13.0'
+    implementation 'androidx.recyclerview:recyclerview:1.3.2'
+    implementation 'androidx.interpolator:interpolator:1.0.0'
+    implementation 'androidx.vectordrawable:vectordrawable:1.1.0'
+
+    // 媒体播放
+    implementation 'androidx.media3:media3-exoplayer:' + project.ext.media3Version
+    implementation 'androidx.media3:media3-exoplayer-dash:' + project.ext.media3Version
+    implementation 'androidx.media3:media3-exoplayer-hls:' + project.ext.media3Version
+    implementation 'androidx.media3:media3-ui:' + project.ext.media3Version
+
+    testImplementation 'junit:junit:4.13.2'
+}
