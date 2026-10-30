@@ -4,7 +4,6 @@ import android.content.Context;
 import android.content.res.ColorStateList;
 import android.content.res.Configuration;
 import android.content.res.Resources;
-import android.os.Build;
 import android.view.Gravity;
 import android.view.View;
 import android.view.ViewGroup;
@@ -33,8 +32,7 @@ public class MenuAdapter extends BaseAdapter {
 		mContext = context;
 		mLayoutResId = layoutResId;
 		mCriticalColor = CRITICAL_COLOR;
-		mLayoutRTL = Build.VERSION.SDK_INT >= Build.VERSION_CODES.JELLY_BEAN_MR1
-				&& (res.getConfiguration().screenLayout & Configuration.SCREENLAYOUT_LAYOUTDIR_MASK) == Configuration.SCREENLAYOUT_LAYOUTDIR_RTL;
+		mLayoutRTL = (res.getConfiguration().screenLayout & Configuration.SCREENLAYOUT_LAYOUTDIR_MASK) == Configuration.SCREENLAYOUT_LAYOUTDIR_RTL;
 	}
 
 	public void setDefaultTextColors(ColorStateList colors) {
@@ -83,9 +81,10 @@ public class MenuAdapter extends BaseAdapter {
 			view.setTag(holder);
 			if (mLayoutRTL) {
 				final int count = view.getChildCount();
-				for (int i = 0; i < count / 2; i++)
+				for (int i = 0; i < count / 2; i++) {
 					view.bringChildToFront(view.getChildAt(i));
-				holder.titleView.setGravity(Gravity.RIGHT | Gravity.CENTER_VERTICAL);
+				}
+				holder.titleView.setGravity(Gravity.END | Gravity.CENTER_VERTICAL);
 			}
 			if (mDefaultTextColors == null)
 				mDefaultTextColors = holder.titleView.getTextColors();

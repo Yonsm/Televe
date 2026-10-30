@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <io.library.widget.DrawerLayout
     xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
     android:id="@+id/drawer_layout"
     android:layout_width="match_parent"
     android:layout_height="match_parent">
@@ -27,6 +28,7 @@
         android:background="#80000000"
         android:fitsSystemWindows="true"
         android:layout_gravity="left"
+        tools:ignore="RtlHardcoded"
         android:layout_width="@dimen/drawer_width"
         android:layout_height="match_parent">
 
@@ -42,8 +44,8 @@
                 android:gravity="center_vertical"
                 android:layout_width="wrap_content"
                 android:layout_height="match_parent"
-                android:paddingLeft="8dp"
-                android:paddingRight="8dp"
+                android:paddingStart="8dp"
+                android:paddingEnd="8dp"
                 android:ellipsize="marquee"
                 android:singleLine="true"
                 android:textColor="?android:attr/textColorPrimary"
@@ -56,10 +58,11 @@
 
             <TextView
                 android:id="@+id/time"
-                android:gravity="right|center_vertical"
+                android:gravity="end|center_vertical"
                 android:layout_width="wrap_content"
                 android:layout_height="match_parent"
-                android:paddingRight="24dp"
+                android:paddingStart="0dp"
+                android:paddingEnd="24dp"
                 android:singleLine="true"
                 android:textColor="?android:attr/textColorPrimary"
                 android:textSize="14sp"/>
