@@ -2,8 +2,6 @@ package net.yonsm.televe;
 
 import androidx.activity.ComponentActivity;
 import androidx.activity.OnBackPressedCallback;
-import android.app.ActivityManager;
-import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.res.Resources;
@@ -101,8 +99,7 @@ public class TvActivity extends ComponentActivity {
         mDrawerLayout = findViewById(R.id.drawer_layout);
         mDrawerLayout.setScrimColor(Color.TRANSPARENT);
         int vis = View.SYSTEM_UI_LAYOUT_FLAGS | View.SYSTEM_UI_FLAG_LAYOUT_STABLE;
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT)
-            vis |= View.SYSTEM_UI_FLAG_IMMERSIVE;
+        vis |= View.SYSTEM_UI_FLAG_IMMERSIVE;
         mDrawerLayout.setSystemUiVisibility(vis);
 
         ToolbarV21 toolbar = mDrawerLayout.findViewById(R.id.toolbar);
@@ -207,7 +204,7 @@ public class TvActivity extends ComponentActivity {
 
         if (mDrawerLayout.isDrawerOpened()) {
             mDrawerLayout.closeDrawer(true);
-            mLastBackPressedTime = now;
+            mLastBackPressedTime = 0;
             return;
         }
 
@@ -221,12 +218,7 @@ public class TvActivity extends ComponentActivity {
     }
 
     private void exitApp() {
-        ActivityManager activityManager = (ActivityManager) getSystemService(Context.ACTIVITY_SERVICE);
-        List<ActivityManager.AppTask> appTaskList = activityManager.getAppTasks();
-        for (ActivityManager.AppTask appTask : appTaskList) {
-            appTask.finishAndRemoveTask();
-        }
-        System.exit(0);
+        finishAndRemoveTask();
     }
 
     private boolean mWindowHasFocus;
@@ -293,6 +285,7 @@ public class TvActivity extends ComponentActivity {
         Uri uri = Uri.parse(channel.url);
         int sourceType = PlayerView.getFixedSourceType(uri, true);
         mPlayerView.removeCallbacks(mReplayAction);
+        mPlaybackStartTime = System.currentTimeMillis();
         mPlayerView.setUri(this, uri, null, sourceType);
         mToolbar.setTitle(channel.title);
     }
@@ -362,7 +355,7 @@ public class TvActivity extends ComponentActivity {
     private static final int REQUEST_SNAPSHOT_PERMISSION = 1;
 
     private void saveSnapshot() {
-        if (Build.VERSION.SDK_INT <= Build.VERSION_CODES.P
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && Build.VERSION.SDK_INT <= Build.VERSION_CODES.P
                 && checkSelfPermission(Manifest.permission.WRITE_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED) {
             requestPermissions(new String[]{Manifest.permission.WRITE_EXTERNAL_STORAGE}, REQUEST_SNAPSHOT_PERMISSION);
             return;
@@ -485,10 +478,6 @@ public class TvActivity extends ComponentActivity {
                 }
             }
         });
-    }
-
-    private boolean getSystemUiVisible() {
-        return (mDrawerLayout.getSystemUiVisibility() & View.SYSTEM_UI_FLAG_LOW_PROFILE) == 0;
     }
 
     private void setSystemUiVisible(boolean visible) {
@@ -672,10 +661,9 @@ public class TvActivity extends ComponentActivity {
     };
 
     private int mAnimateWhenFirstFrame;
+    private long mPlaybackStartTime;
     private PlayerView.State mLastState = PlayerView.State.NONE;
     private final PlayerView.EventListener mEventListener = new PlayerView.EventListener() {
-        private long mStartTime = System.currentTimeMillis();
-
         @Override
         public void onStateChanged(PlayerView.State state) {
             if (mLastState == state)
@@ -689,7 +677,7 @@ public class TvActivity extends ComponentActivity {
                 final int width = mPlayerView.getVideoWidth();
                 final int height = mPlayerView.getVideoHeight();
                 Log.d(TAG, "Load " + (mChannel != null ? mChannel.url : null) + ", " + width + "x" + height
-                        + ", used=" + (System.currentTimeMillis() - mStartTime));
+                        + ", used=" + (System.currentTimeMillis() - mPlaybackStartTime));
                 if (!mDrawerLayout.isDrawerOpened())
                     setSystemUiVisible(false);
             }
@@ -762,8 +750,7 @@ public class TvActivity extends ComponentActivity {
         public void onFocusChange(View view, boolean hasFocus) {
             float scale = hasFocus ? 1.1f : 1;
             view.animate().scaleX(scale).scaleY(scale).start();
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP)
-                view.setElevation(hasFocus ? 4 * mDensity : 0);
+            view.setElevation(hasFocus ? 4 * mDensity : 0);
         }
     };
 

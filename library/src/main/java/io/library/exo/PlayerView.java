@@ -118,6 +118,9 @@ public class PlayerView extends TextureView implements TextureView.SurfaceTextur
 
     public void setUri(Context context, Uri uri, Map<String, String> headers, int type, Uri subtitleUri, String subtitleType) {
         if (mExoPlayer != null) {
+            mVideoWidth = 0;
+            mVideoHeight = 0;
+            requestLayout();
             MediaItem mediaItem = buildMediaItem(uri, subtitleUri, subtitleType);
             // 把按 scheme 选出的 DataSource 工厂(rtsp/http)注入 MediaSource。
             // 否则 ExoPlayer 退回默认 DataSource 去读 自定义 scheme，无法播放。
