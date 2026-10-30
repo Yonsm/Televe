@@ -365,10 +365,10 @@ public class ImageDrawable extends Drawable {
 			BitmapFactory.decodeFileDescriptor(fd, null, opts);
 			opts.inJustDecodeBounds = false;
 			// 缩略图(目标尺寸 <=1024px)大多是不透明 JPEG/WEBP，用 RGB_565 内存减半且解码更快；
-			// PNG/GIF 保留 ARGB_8888；全屏大图(LargeImageView 的 4096 fallback)也保留 8888 避免褪色丢 alpha
+			// PNG 保留 ARGB_8888；全屏大图(LargeImageView 的 4096 fallback)也保留 8888 避免褪色丢 alpha
 			if (opts.inPreferredConfig == null && maxSize != null && maxSize.max() <= 1024) {
 				final String mime = opts.outMimeType;
-				if (mime != null && !mime.equals("image/png") && !mime.equals("image/gif"))
+				if (mime != null && !mime.equals("image/png"))
 					opts.inPreferredConfig = Bitmap.Config.RGB_565;
 			}
 			if (degree == NO_DEGREE && Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
@@ -395,13 +395,7 @@ public class ImageDrawable extends Drawable {
 			int height = opts.outHeight;
 			opts.inSampleSize = maxSize != null ? maxSize.computeSampleSize(width, height) : 1;
 
-			if ("image/gif".equals(opts.outMimeType)) {
-				// 动图 GIF：用 android-gif-drawable 播放（native mediajni 已移除）
-				try {
-					return new GifCompatDrawable(afd);
-				} catch (IOException ignored) {
-				}
-			}
+			if ("image/gif".equals(opts.outMimeType)) return null;
 
 			Bitmap bitmap;
 			if (opts.outMimeType != null || opts.outWidth > 0 || opts.outHeight > 0) {

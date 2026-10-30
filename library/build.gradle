@@ -39,9 +39,6 @@ dependencies {
     implementation 'androidx.annotation:annotation:1.7.1'
     implementation 'androidx.appcompat:appcompat:1.7.0'
 
-    // GIF 支持
-    implementation 'pl.droidsonroids.gif:android-gif-drawable:1.2.32'
-
     // 媒体播放
     implementation 'androidx.media3:media3-exoplayer:' + project.ext.media3Version
     implementation 'androidx.media3:media3-common:' + project.ext.media3Version
