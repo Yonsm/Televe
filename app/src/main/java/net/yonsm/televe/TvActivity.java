@@ -43,9 +43,7 @@ import internal.playlist.ChannelList;
 import internal.playlist.ChannelListCallback;
 import internal.playlist.PlaylistRepository;
 import internal.dialog.AboutDialog;
-import internal.menu.ToolMenu;
 import internal.menu.ToolMenuItem;
-import internal.tv.TvChannelPublisher;
 import internal.utils.PrefUtils;
 import internal.utils.SnapshotStore;
 import android.Manifest;
@@ -115,7 +113,6 @@ public class TvActivity extends ComponentActivity {
         mToolbar.getView().setVisibility(View.GONE);
         mDrawerLayout.init(mToolbar.getView(), delegate, mDrawerListener);
         mDrawerLayout.setOnClickListener(mClickListener);
-        mDrawerLayout.setOnLongClickListener(mLongClickListener);
         mDrawerLayout.setStatusBarStyle(Color.TRANSPARENT, 0);
 
         mChannelMenu = mDrawerLayout.findViewById(R.id.channel_menu);
@@ -131,7 +128,6 @@ public class TvActivity extends ComponentActivity {
         mPlayerView.addEventListener(mEventListener);
         mPlayerView.setKeepScreenOn(true);
         mPlayerView.setOnClickListener(mClickListener);
-        mPlayerView.setOnLongClickListener(mLongClickListener);
         mPlayerView.setOnKeyListener(mKeyListener);
         mPlayerView.requestFocus();
 
@@ -168,7 +164,6 @@ public class TvActivity extends ComponentActivity {
         mChannel = channel;
         mWindowHasFocus = true; // to play in onResume()
         setupProviderMenu(false);
-        TvService.start(this);
     }
 
     @Override
@@ -222,26 +217,6 @@ public class TvActivity extends ComponentActivity {
             return;
         }
 
-        final Channel channel = mChannel;
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && channel != null) {
-            final Bitmap snapshot = getSnapshotBitmap();
-            if (snapshot != null) {
-                final TvChannelPublisher publisher = new TvChannelPublisher(this);
-                AsyncTask.execute(new Runnable() {
-                    @Override
-                    public void run() {
-                        try {
-                            publisher.updateWatchNextProgram(channel, snapshot);
-                        } finally {
-                            snapshot.recycle();
-                            exitApp();
-                        }
-                    }
-                });
-                finish();
-                return;
-            }
-        }
         exitApp();
     }
 
@@ -755,27 +730,6 @@ public class TvActivity extends ComponentActivity {
             } else if (view == mProviderView) {
                 showProviderMenu();
             }
-        }
-    };
-
-    private final View.OnLongClickListener mLongClickListener = new View.OnLongClickListener() {
-        @Override
-        public boolean onLongClick(View view) {
-            if ((view == mDrawerLayout || view == mPlayerView) && mChannel != null) {
-                ToolMenu menu = new ToolMenu(TvActivity.this);
-                menu.add(R.string.action_tv_favorite)
-                        .setIcon(ToolMenuItem.getIcon(TvActivity.this, R.drawable.ic_action_favorite))
-                        .setOnMenuItemClickListener(new MenuItem.OnMenuItemClickListener() {
-                    @Override
-                    public boolean onMenuItemClick(MenuItem item) {
-                        TvService.startPublish(TvActivity.this, mChannel);
-                        return true;
-                    }
-                });
-                menu.show(view);
-                return true;
-            }
-            return false;
         }
     };
 
