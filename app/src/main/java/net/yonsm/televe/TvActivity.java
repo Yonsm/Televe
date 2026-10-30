@@ -146,7 +146,7 @@ public class TvActivity extends ComponentActivity {
         mProviderView.setOnFocusChangeListener(mFocusListener);
 
         mTimeView = mDrawerLayout.findViewById(R.id.time);
-        mTimeView.post(mUpdateTimeAction);
+        scheduleTimeUpdate();
 
         Intent intent = getIntent();
         Channel channel = intent.getParcelableExtra(Channel.EXTRA_CHANNEL);
@@ -200,9 +200,7 @@ public class TvActivity extends ComponentActivity {
     public void onResume() {
         super.onResume();
 
-        // 恢复时间更新
-        if (mTimeView != null)
-            mTimeView.post(mUpdateTimeAction);
+        scheduleTimeUpdate();
 
         if (mWindowHasFocus && mChannel != null)
             playChannel(mChannel);
@@ -320,7 +318,7 @@ public class TvActivity extends ComponentActivity {
         Uri uri = Uri.parse(channel.url);
         int sourceType = PlayerView.getFixedSourceType(uri, true);
         mPlayerView.removeCallbacks(mReplayAction);
-        mPlayerView.setUri(this, uri, null, sourceType, false);
+        mPlayerView.setUri(this, uri, null, sourceType);
         mToolbar.setTitle(channel.title);
     }
 
@@ -463,9 +461,7 @@ public class TvActivity extends ComponentActivity {
             public void run() {
                 List<Channel> list = mResult;
                 if (!isDestroyed() && mCurrentFolder == folder && list != null) {
-                    mChannelList.clear();
-                    mChannelList.addAll(list);
-                    mChannelAdapter.notifyDataSetChanged(); // to disable animation
+                    mChannelList.replaceAll(list);
                     if (mChannel == null) {
                         playChannel(0);
                     } else {
@@ -850,9 +846,16 @@ public class TvActivity extends ComponentActivity {
         public void run() {
             long now = System.currentTimeMillis();
             mTimeView.setText(DateUtils.formatDateTime(mTimeView.getContext(), now, DateUtils.FORMAT_SHOW_TIME));
-            mTimeView.postDelayed(this, 1000);
+            mTimeView.postDelayed(this, 60_000 - now % 60_000);
         }
     };
+
+    private void scheduleTimeUpdate() {
+        if (mTimeView != null) {
+            mTimeView.removeCallbacks(mUpdateTimeAction);
+            mTimeView.post(mUpdateTimeAction);
+        }
+    }
 
     private static boolean isHD(String title) {
         return title != null && (title.endsWith("HD") || title.endsWith("高清") || title.endsWith("4K"));

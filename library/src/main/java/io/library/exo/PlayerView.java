@@ -2,18 +2,12 @@ package io.library.exo;
 
 import android.content.Context;
 import android.graphics.SurfaceTexture;
-import android.media.MediaDataSource;
-import android.media.MediaFormat;
-import android.media.MediaPlayer;
-import android.media.PlaybackParams;
 import android.net.Uri;
-import android.os.Build;
 import android.util.AttributeSet;
 import android.util.Log;
 import android.view.Surface;
 import android.view.TextureView;
 
-import androidx.annotation.RequiresApi;
 import androidx.media3.common.C;
 import androidx.media3.common.Format;
 import androidx.media3.common.MediaItem;
@@ -31,9 +25,6 @@ import androidx.media3.common.util.Util;
 import androidx.media3.datasource.DataSource;
 import androidx.media3.datasource.DefaultDataSource;
 import androidx.media3.datasource.DefaultHttpDataSource;
-import androidx.media3.datasource.cache.CacheDataSource;
-import androidx.media3.datasource.cache.LeastRecentlyUsedCacheEvictor;
-import androidx.media3.datasource.cache.SimpleCache;
 import androidx.media3.exoplayer.DefaultLoadControl;
 import androidx.media3.exoplayer.DefaultRenderersFactory;
 import androidx.media3.exoplayer.ExoPlayer;
@@ -42,7 +33,6 @@ import androidx.media3.exoplayer.source.MediaSource;
 import androidx.media3.exoplayer.trackselection.DefaultTrackSelector;
 import androidx.media3.exoplayer.trackselection.TrackSelector;
 
-import java.io.File;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -85,7 +75,6 @@ public class PlayerView extends TextureView implements TextureView.SurfaceTextur
     private int mVideoHeight;
     private float mAspectRatio = 0;
     private ExoPlayer mExoPlayer;
-    private MediaPlayer mMediaPlayer;
     private Surface mSurface;
     private DefaultTrackSelector mTrackSelector;
     private final CopyOnWriteArrayList<EventListener> mEventListeners = new CopyOnWriteArrayList<>();
@@ -101,7 +90,7 @@ public class PlayerView extends TextureView implements TextureView.SurfaceTextur
     public PlayerView(Context context, AttributeSet attrs, int defStyleAttr) {
         super(context, attrs, defStyleAttr);
         setSurfaceTextureListener(this);
-        createPlayer(true);
+        createPlayer();
     }
 
     public void addEventListener(EventListener listener) {
@@ -123,64 +112,33 @@ public class PlayerView extends TextureView implements TextureView.SurfaceTextur
         }
     }
 
-    public void setExternalPlayer(boolean external) {
-        release();
-        createPlayer(external);
+    public void setUri(Context context, Uri uri, Map<String, String> headers, int type) {
+        setUri(context, uri, headers, type, null, null);
     }
 
-    @RequiresApi(api = Build.VERSION_CODES.M)
-    public void setDataSource(MediaDataSource dataSource) {
-        if (mMediaPlayer != null) try {
-            mMediaPlayer.setDataSource(dataSource);
-            mMediaPlayer.prepareAsync();
-            notifyEvent(State.BUFFERING);
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
-    }
-
-    public void setUri(Context context, Uri uri, Map<String, String> headers, int type, boolean enableCache) {
-        setUri(context, uri, headers, type, enableCache, null, null);
-    }
-
-    public void setUri(Context context, Uri uri, Map<String, String> headers, int type, boolean enableCache, Uri subtitleUri, String subtitleType) {
+    public void setUri(Context context, Uri uri, Map<String, String> headers, int type, Uri subtitleUri, String subtitleType) {
         if (mExoPlayer != null) {
-            MediaItem mediaItem = buildMediaItem(context, uri, headers, type, enableCache, subtitleUri, subtitleType, null);
-            // 把按 scheme 选出的 DataSource 工厂(rtsp/http/缓存)注入 MediaSource。
+            MediaItem mediaItem = buildMediaItem(uri, subtitleUri, subtitleType);
+            // 把按 scheme 选出的 DataSource 工厂(rtsp/http)注入 MediaSource。
             // 否则 ExoPlayer 退回默认 DataSource 去读 自定义 scheme，无法播放。
-            int actualType = type != -1 ? type : Util.inferContentType(uri);
-            boolean useCache = enableCache && actualType == C.CONTENT_TYPE_OTHER;
-            DataSource.Factory dataSourceFactory = buildSourceFactory(context, uri, headers, useCache, null);
+            DataSource.Factory dataSourceFactory = buildSourceFactory(context, uri, headers, null);
             MediaSource mediaSource = new DefaultMediaSourceFactory(context)
                     .setDataSourceFactory(dataSourceFactory)
                     .createMediaSource(mediaItem);
             mExoPlayer.setMediaSource(mediaSource);
             mExoPlayer.prepare();
-        } else if (mMediaPlayer != null) try {
-            mMediaPlayer.reset();
-            mMediaPlayer.setDataSource(context, uri, headers);
-            if (subtitleUri != null)
-                mMediaPlayer.addTimedTextSource(context, subtitleUri, subtitleType);
-            mMediaPlayer.prepareAsync();
-            notifyEvent(State.BUFFERING);
-        } catch (Exception e) {
-            e.printStackTrace();
         }
     }
 
     public long getCurrentPosition() {
         if (mExoPlayer != null)
             return mExoPlayer.getCurrentPosition();
-        else if (mMediaPlayer != null)
-            return mMediaPlayer.getCurrentPosition();
         return -1;
     }
 
     public long getDuration() {
         if (mExoPlayer != null)
             return mExoPlayer.getDuration();
-        else if (mMediaPlayer != null)
-            return mMediaPlayer.getDuration();
         return -1;
     }
 
@@ -191,8 +149,6 @@ public class PlayerView extends TextureView implements TextureView.SurfaceTextur
             VideoSize videoSize = mExoPlayer.getVideoSize();
             mVideoWidth = videoSize.width;
             mVideoHeight = videoSize.height;
-        } else if (mMediaPlayer != null) {
-            mVideoWidth = mMediaPlayer.getVideoWidth();
         }
         return mVideoWidth;
     }
@@ -204,8 +160,6 @@ public class PlayerView extends TextureView implements TextureView.SurfaceTextur
             VideoSize videoSize = mExoPlayer.getVideoSize();
             mVideoWidth = videoSize.width;
             mVideoHeight = videoSize.height;
-        } else if (mMediaPlayer != null) {
-            mVideoHeight = mMediaPlayer.getVideoHeight();
         }
         return mVideoHeight;
     }
@@ -213,13 +167,7 @@ public class PlayerView extends TextureView implements TextureView.SurfaceTextur
     public boolean isCurrentSeekable() {
         if (mExoPlayer != null)
             return mExoPlayer.isCurrentWindowSeekable() && !mExoPlayer.isCurrentWindowDynamic();
-        else if (mMediaPlayer != null)
-            return mMediaPlayer.getDuration() > 0;
         return false;
-    }
-
-    public boolean isExternalPlayer() {
-        return mExoPlayer != null;
     }
 
     public boolean getPlayWhenReady() {
@@ -232,12 +180,6 @@ public class PlayerView extends TextureView implements TextureView.SurfaceTextur
         mPlayWhenReady = playWhenReady;
         if (mExoPlayer != null)
             mExoPlayer.setPlayWhenReady(mPlayWhenReady);
-        else if (mMediaPlayer != null) {
-            if (mPlayWhenReady)
-                mMediaPlayer.start();
-            else
-                mMediaPlayer.pause();
-        }
     }
 
     public void getTracks(List<Track> tracks) {
@@ -278,40 +220,6 @@ public class PlayerView extends TextureView implements TextureView.SurfaceTextur
                     tracks.add(track);
                 }
             }
-        } else if (mMediaPlayer != null) {
-            MediaPlayer.TrackInfo[] list = mMediaPlayer.getTrackInfo();
-            if (list == null) return;
-            int index = 0;
-            for (MediaPlayer.TrackInfo info : list) {
-                MediaFormat fmt = Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT ? info.getFormat() : null;
-                Track track = new Track();
-                track.language = info.getLanguage();
-                track.mimeType = fmt != null ? fmt.getString(MediaFormat.KEY_LANGUAGE) : null;
-                track.index = index++;
-                int trackType = info.getTrackType();
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP)
-                    track.selected = track.index == mMediaPlayer.getSelectedTrack(trackType);
-                switch (info.getTrackType()) {
-                    case MediaPlayer.TrackInfo.MEDIA_TRACK_TYPE_AUDIO:
-                        track.type = Track.Type.AUDIO;
-                        break;
-                    case MediaPlayer.TrackInfo.MEDIA_TRACK_TYPE_VIDEO:
-                        track.type = Track.Type.VIDEO;
-                        break;
-                    case MediaPlayer.TrackInfo.MEDIA_TRACK_TYPE_SUBTITLE:
-                    case MediaPlayer.TrackInfo.MEDIA_TRACK_TYPE_TIMEDTEXT:
-                        track.type = Track.Type.SUBTITLE;
-                        break;
-                    case MediaPlayer.TrackInfo.MEDIA_TRACK_TYPE_METADATA:
-                        track.type = Track.Type.METADATA;
-                        break;
-                    case MediaPlayer.TrackInfo.MEDIA_TRACK_TYPE_UNKNOWN:
-                    default:
-                        track.type = Track.Type.UNKNOWN;
-                        break;
-                }
-                tracks.add(track);
-            }
         }
     }
 
@@ -325,52 +233,35 @@ public class PlayerView extends TextureView implements TextureView.SurfaceTextur
                     .setOverrideForType(override)
                     .build();
             mExoPlayer.setTrackSelectionParameters(params);
-        } else if (mMediaPlayer != null) {
-            mMediaPlayer.selectTrack(track.index);
         }
     }
 
     public void seekTo(long positionMs) {
         if (mExoPlayer != null)
             mExoPlayer.seekTo(positionMs);
-        else if (mMediaPlayer != null)
-            mMediaPlayer.seekTo((int) positionMs);
     }
 
     public void setSpeed(float speed) {
         if (mExoPlayer != null)
             mExoPlayer.setPlaybackParameters(new PlaybackParameters(speed, 1));
-        else if (mMediaPlayer != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.M)
-            mMediaPlayer.setPlaybackParams(new PlaybackParams().setSpeed(speed));
     }
 
-    private void createPlayer(boolean external) {
+    private void createPlayer() {
         if (mSurface == null) {
             SurfaceTexture surface = getSurfaceTexture();
             mSurface = surface != null ? new Surface(surface) : null;
         }
-        if (external) {
-            mTrackSelector = new DefaultTrackSelector(getContext());
-            mExoPlayer = createExoPlayer(getContext(), mTrackSelector);
-            mExoPlayer.addListener(mExoEventListener);
-            mExoPlayer.addListener(mExoVideoListener);
-            mExoPlayer.setVideoSurface(mSurface);
-            mExoPlayer.setPlayWhenReady(mPlayWhenReady);
-        } else {
-            mMediaPlayer = new MediaPlayer();
-            mMediaPlayer.setSurface(mSurface);
-            mMediaPlayer.setOnCompletionListener(mCompletionListener);
-            mMediaPlayer.setOnErrorListener(mErrorListener);
-            mMediaPlayer.setOnPreparedListener(mPreparedListener);
-            mMediaPlayer.setOnVideoSizeChangedListener(mVideoSizeChangedListener);
-        }
+        mTrackSelector = new DefaultTrackSelector(getContext());
+        mExoPlayer = createExoPlayer(getContext(), mTrackSelector);
+        mExoPlayer.addListener(mExoEventListener);
+        mExoPlayer.addListener(mExoVideoListener);
+        mExoPlayer.setVideoSurface(mSurface);
+        mExoPlayer.setPlayWhenReady(mPlayWhenReady);
     }
 
     public void stop() {
         if (mExoPlayer != null)
             mExoPlayer.stop();
-        else if (mMediaPlayer != null)
-            mMediaPlayer.stop();
     }
 
     public void release() {
@@ -382,15 +273,6 @@ public class PlayerView extends TextureView implements TextureView.SurfaceTextur
             mExoPlayer = null;
             mTrackSelector = null;
         }
-        if (mMediaPlayer != null) {
-            mMediaPlayer.setOnCompletionListener(null);
-            mMediaPlayer.setOnErrorListener(null);
-            mMediaPlayer.setOnPreparedListener(null);
-            mMediaPlayer.setOnVideoSizeChangedListener(null);
-            mMediaPlayer.reset();
-            mMediaPlayer.release();
-            mMediaPlayer = null;
-        }
         releaseSurface();
     }
 
@@ -398,8 +280,6 @@ public class PlayerView extends TextureView implements TextureView.SurfaceTextur
         releaseSurface();
         if (mExoPlayer != null)
             mExoPlayer.setVideoSurface(mSurface = new Surface(surface));
-        else if (mMediaPlayer != null)
-            mMediaPlayer.setSurface(mSurface = new Surface(surface));
     }
 
     private void releaseSurface() {
@@ -463,6 +343,8 @@ public class PlayerView extends TextureView implements TextureView.SurfaceTextur
 
     @Override
     public void onSurfaceTextureAvailable(SurfaceTexture surface, int width, int height) {
+        if (mExoPlayer == null)
+            createPlayer();
         setSurface(surface);
         Log.d(TAG, "onSurfaceTextureAvailable " + surface + ": " + width + "x" + height);
     }
@@ -549,43 +431,6 @@ public class PlayerView extends TextureView implements TextureView.SurfaceTextur
         }
     };
 
-    private final MediaPlayer.OnCompletionListener mCompletionListener = new MediaPlayer.OnCompletionListener() {
-        @Override
-        public void onCompletion(MediaPlayer player) {
-            if (player == mMediaPlayer)
-                notifyEvent(State.ENDED);
-        }
-    };
-
-    public static final int MEDIA_ERROR_SYSTEM = Integer.MIN_VALUE;
-    private final MediaPlayer.OnErrorListener mErrorListener = new MediaPlayer.OnErrorListener() {
-        @Override
-        public boolean onError(MediaPlayer player, int what, int extra) {
-            if (player == mMediaPlayer && what > MediaPlayer.MEDIA_ERROR_UNKNOWN && extra != MEDIA_ERROR_SYSTEM)
-                notifyError(what, extra, null);
-            return true;
-        }
-    };
-
-    private final MediaPlayer.OnPreparedListener mPreparedListener = new MediaPlayer.OnPreparedListener() {
-        @Override
-        public void onPrepared(MediaPlayer player) {
-            if (player == mMediaPlayer) {
-                if (mPlayWhenReady)
-                    player.start();
-                notifyEvent(State.READY);
-            }
-        }
-    };
-
-    private final MediaPlayer.OnVideoSizeChangedListener mVideoSizeChangedListener = new MediaPlayer.OnVideoSizeChangedListener() {
-        @Override
-        public void onVideoSizeChanged(MediaPlayer player, int width, int height) {
-            if (player == mMediaPlayer)
-                mExoVideoListener.onVideoSizeChanged(new VideoSize(width, height));
-        }
-    };
-
     private static final int DEFAULT_MIN_BUFFER_MS = 2000;
     private static final int DEFAULT_MAX_BUFFER_MS = 5000;
     private static final int TIMEOUT_CONNECT = 15000;
@@ -616,35 +461,20 @@ public class PlayerView extends TextureView implements TextureView.SurfaceTextur
     }
 
     public static DataSource.Factory buildSourceFactory(Context context, Uri uri, Map<String, String> headers,
-                                                        boolean enableCache, androidx.media3.datasource.TransferListener listener) {
+                                                        androidx.media3.datasource.TransferListener listener) {
         final String scheme = uri.getScheme();
         DataSource.Factory factory;
         if ("rtsp".equals(scheme) || "rtsps".equals(scheme)) {
             factory = new ClientDataSource.DefaultFactory(headers);
-            enableCache = false;
         } else if ("http".equals(scheme) || "https".equals(scheme)) {
             factory = new ClientDataSource.DefaultFactory(headers);
         } else {
             factory = buildDefaultFactory(context, headers, listener);
-            if (!isWebUri(uri))
-                enableCache = false;
-        }
-        if (enableCache) {
-            CacheDataSource.Factory cacheFactory = new CacheDataSource.Factory();
-            cacheFactory.setCache(getDefaultCache(context));
-            cacheFactory.setUpstreamDataSourceFactory(factory);
-            factory = cacheFactory;
         }
         return factory;
     }
 
-    public static MediaItem buildMediaItem(Context context, Uri uri, Map<String, String> headers, int type,
-                                           boolean enableCache, Uri subtitleUri, String subtitleType, androidx.media3.datasource.TransferListener listener) {
-        if (type == -1)
-            type = Util.inferContentType(uri);
-        if (type != C.CONTENT_TYPE_OTHER)
-            enableCache = false;
-
+    public static MediaItem buildMediaItem(Uri uri, Uri subtitleUri, String subtitleType) {
         MediaItem.Builder builder = new MediaItem.Builder().setUri(uri);
 
         if (subtitleUri != null) {
@@ -658,26 +488,6 @@ public class PlayerView extends TextureView implements TextureView.SurfaceTextur
         }
 
         return builder.build();
-    }
-
-    private static final String CACHE_DIR = "media_cache";
-    private static final long CACHE_SIZE = 256 * 1024 * 1024;
-    private static SimpleCache sVideoCache;
-
-    public static File getCacheDir(Context context) {
-        final File dir = context.getExternalCacheDir();
-        return new File(dir != null ? dir : context.getCacheDir(), CACHE_DIR);
-    }
-
-    public static long getCacheSize() {
-        SimpleCache cache = sVideoCache;
-        return cache != null ? cache.getCacheSpace() : 0;
-    }
-
-    public static synchronized SimpleCache getDefaultCache(Context context) {
-        if (sVideoCache == null)
-            sVideoCache = new SimpleCache(getCacheDir(context), new LeastRecentlyUsedCacheEvictor(CACHE_SIZE));
-        return sVideoCache;
     }
 
     public static int getFixedSourceType(Uri uri, boolean live) {

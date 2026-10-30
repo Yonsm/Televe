@@ -19,7 +19,7 @@ import io.library.utils.DiskCache;
 public class Downloader implements Callable<File> {
 	private static final ConcurrentHashMap<Long, Lock> mLoadings = new ConcurrentHashMap<>();
 
-	public static final ExecutorService EXECUTOR = Executors.newCachedThreadPool();
+	public static final ExecutorService EXECUTOR = Executors.newFixedThreadPool(4);
 
 	public interface Listener extends HttpClient.Callback {
 		void onResult(String url, File file, String mimeType, boolean fromCache);
