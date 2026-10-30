@@ -5,7 +5,6 @@
     <string name="about_message">面向 Android 手机、平板和电视的 IPTV 直播应用。</string>
     <string name="aspect_ratio">长宽比</string>
     <string name="aspect_ratio_default">默认</string>
-    <string name="exit_app">退出</string>
     <string name="only_hd">只列高清</string>
     <string name="press_again_exit">再按一次退出</string>
     <string name="refresh_lists">刷新源</string>

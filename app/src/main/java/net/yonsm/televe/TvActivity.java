@@ -514,8 +514,6 @@ public class TvActivity extends ComponentActivity {
                     mAspectRatio = 16 / 9f;
                 } else if (itemId == R.id.aspect_ratio_4_3) {
                     mAspectRatio = 4 / 3f;
-                } else if (itemId == R.id.exit_app) {
-                    exitApp();
                 } else if (itemId == R.id.action_refresh_lists) {
                     setupProviderMenu(true);
                     return true;

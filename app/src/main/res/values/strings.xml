@@ -7,7 +7,6 @@
     <string name="aspect_ratio_default">Default</string>
     <string name="aspect_ratio_16_9" translatable="false">16:9</string>
     <string name="aspect_ratio_4_3" translatable="false">4:3</string>
-    <string name="exit_app">Exit</string>
     <string name="only_hd">Only HD</string>
     <string name="press_again_exit">Press back again to exit</string>
     <string name="refresh_lists">Refresh</string>
