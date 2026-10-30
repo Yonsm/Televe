@@ -19,10 +19,10 @@ import io.library.utils.DiskCache;
 /** Persists lists locally until an explicit refresh is requested. */
 public class PlaylistRepository implements AutoCloseable {
     public static final String DEFAULT_URL = "https://yonsm.github.io/IPTV/lists.m3u8";
-    private static final int CACHE_VERSION = 1;
+    private static final int CACHE_VERSION = 3;
     private final ExecutorService executor = Executors.newSingleThreadExecutor();
     private final File directory;
-    private final Channel root = Channel.fromUrl(DEFAULT_URL);
+    private volatile Channel root;
     private volatile boolean closed;
 
     public interface Listener {
@@ -31,25 +31,37 @@ public class PlaylistRepository implements AutoCloseable {
     }
 
     public PlaylistRepository(Context context) {
+        this(context, DEFAULT_URL);
+    }
+
+    public PlaylistRepository(Context context, String rootUrl) {
         directory = new File(context.getFilesDir(), "playlists");
-        root.playlist = true;
+        setRootUrl(rootUrl);
     }
 
     public Channel getRoot() {
         return root;
     }
 
+    public void setRootUrl(String url) {
+        Channel channel = Channel.fromUrl(url);
+        channel.playlist = true;
+        root = channel;
+    }
+
     public void request(Channel playlist, boolean refresh, Listener listener) {
         if (closed) return;
+        final String url = playlist.url;
+        final boolean rootPlaylist = playlist == root;
         executor.execute(() -> {
             try {
                 AtomicFile cache = new AtomicFile(new File(directory,
-                        Long.toHexString(DiskCache.hash64(playlist.url))));
-                List<Channel> channels = refresh ? null : readCache(cache, playlist.url);
+                        Long.toHexString(DiskCache.hash64(url))));
+                List<Channel> channels = refresh ? null : readCache(cache, url);
                 if (channels == null) {
-                    channels = new Request(playlist.url, "GET", false)
-                            .execute(new PlaylistParser(playlist == root));
-                    writeCache(cache, playlist.url, channels);
+                    channels = new Request(url, "GET", false)
+                            .execute(new PlaylistParser(rootPlaylist));
+                    writeCache(cache, url, channels);
                 }
                 if (!closed) listener.onResult(channels);
             } catch (Exception error) {

@@ -18,6 +18,7 @@ public class Channel extends ParcelableObject<Channel> {
     public String thumbnail = "";
     public int order = NO_ORDER;
     public boolean playlist;
+    public boolean playlistSource;
 
     public Channel() {}
 
@@ -28,6 +29,7 @@ public class Channel extends ParcelableObject<Channel> {
         thumbnail = in.readUTF();
         order = in.readInt();
         playlist = in.readBoolean();
+        playlistSource = in.readBoolean();
     }
 
     public static Channel fromUrl(String url) {
@@ -45,6 +47,7 @@ public class Channel extends ParcelableObject<Channel> {
         writeUTF(thumbnail, out);
         out.writeInt(order);
         out.writeBoolean(playlist);
+        out.writeBoolean(playlistSource);
     }
 
     public static boolean isEmpty(String value) {
@@ -70,7 +73,7 @@ public class Channel extends ParcelableObject<Channel> {
 
     public boolean equalsContent(Channel other) {
         return equals(other) && order == other.order && Objects.equals(title, other.title)
-                && Objects.equals(thumbnail, other.thumbnail);
+                && playlistSource == other.playlistSource && Objects.equals(thumbnail, other.thumbnail);
     }
 
     public static final Creator<Channel> CREATOR = new ParcelableCreator<>(Channel.class);

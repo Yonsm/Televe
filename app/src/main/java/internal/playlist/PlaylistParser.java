@@ -29,7 +29,7 @@ public class PlaylistParser implements Request.Parser<List<Channel>> {
         List<Channel> result = new ArrayList<>();
         String line;
         boolean m3u = false;
-        Channel pending = null;
+        PendingEntry pending = null;
         while ((line = reader.readLine()) != null) {
             line = line.replace("\uFEFF", "").trim();
             if (line.isEmpty()) continue;
@@ -40,7 +40,7 @@ public class PlaylistParser implements Request.Parser<List<Channel>> {
                 pending = parseInfo(line.substring(8));
             } else if (!line.startsWith("#")) {
                 if (m3u) {
-                    Channel channel = pending != null ? pending : new Channel();
+                    Channel channel = pending != null ? pending.channel : new Channel();
                     channel.url = line;
                     if (Channel.isEmpty(channel.title)) channel.title = line;
                     if (Channel.isEmpty(channel.id)) channel.id = channel.title;
@@ -48,6 +48,7 @@ public class PlaylistParser implements Request.Parser<List<Channel>> {
                         channel.thumbnail = LOGO_BASE + channel.id.replace("-", "").replace("HD", "").trim() + ".jpg";
                     }
                     channel.playlist = providers;
+                    channel.playlistSource = pending != null && pending.playlist && isPlaylistUrl(channel.url);
                     result.add(channel);
                     pending = null;
                 } else {
@@ -67,6 +68,7 @@ public class PlaylistParser implements Request.Parser<List<Channel>> {
                     }
                     channel.id = channel.title;
                     channel.playlist = providers;
+                    channel.playlistSource = isPlaylistUrl(channel.url);
                     result.add(channel);
                 }
             }
@@ -74,7 +76,7 @@ public class PlaylistParser implements Request.Parser<List<Channel>> {
         return result;
     }
 
-    private Channel parseInfo(String info) {
+    private PendingEntry parseInfo(String info) {
         Channel channel = new Channel();
         Map<String, String> attributes = new HashMap<>();
         Matcher matcher = ATTRIBUTE.matcher(info);
@@ -103,7 +105,28 @@ public class PlaylistParser implements Request.Parser<List<Channel>> {
         if (Channel.isEmpty(channel.id)) channel.id = attributes.get("server-id");
         if (Channel.isEmpty(channel.id)) channel.id = attributes.get("tvg-id");
         channel.thumbnail = attributes.get("tvg-logo");
-        return channel;
+        boolean playlist = attributes.containsKey("server-id") || !attributes.containsKey("group-title");
+        return new PendingEntry(channel, playlist);
+    }
+
+    private static boolean isPlaylistUrl(String url) {
+        int end = url.length();
+        int query = url.indexOf('?');
+        int fragment = url.indexOf('#');
+        if (query >= 0) end = query;
+        if (fragment >= 0) end = Math.min(end, fragment);
+        String lower = url.substring(0, end).toLowerCase(java.util.Locale.US);
+        return lower.endsWith(".m3u") || lower.endsWith(".m3u8");
+    }
+
+    private static final class PendingEntry {
+        final Channel channel;
+        final boolean playlist;
+
+        PendingEntry(Channel channel, boolean playlist) {
+            this.channel = channel;
+            this.playlist = playlist;
+        }
     }
 
     private static int parseOrder(String value) {
