@@ -33,7 +33,7 @@ library/             播放器、网络、图片缓存与必要的界面工具
 
 ## 构建
 
-需要 JDK 21、Android SDK 36。通过 Android Studio 打开仓库根目录，或在 `local.properties` 配置本机 `sdk.dir` 后执行：
+需要已安装且与 Android Gradle Plugin 兼容的 JDK 及 Android SDK 36。项目不固定 Gradle Daemon 的 JDK 版本；本机 JBR 21 已用于构建验证。通过 Android Studio 打开仓库根目录，或在 `local.properties` 配置本机 `sdk.dir` 后执行：
 
 ```sh
 ./gradlew :app:assembleDebug
@@ -52,10 +52,11 @@ RELEASE_KEY_ALIAS=your-alias
 RELEASE_KEY_PASSWORD=your-key-password
 ```
 
-未配置签名参数时使用 Android 默认调试签名。也可使用同名的 `DEBUG_*` 参数配置本机签名；配置 `RELEASE_*` 后，调试包和发布包均使用该签名。正式发布前应配置并妥善保管独立的发布密钥。
+Release 构建必须配置以上四个参数，缺失时会失败，不会回退为调试签名。密钥路径、别名和密码仅保存在未纳入版本控制的本机 `local.properties` 中。
 
 应用的设置、列表缓存和电视推荐属于自身包名。其他应用的数据不会自动导入。
 
-## 使用范围
+## 授权
 
-本项目仅用于个人学习与研究用途。
+以 GNU General Public License v3.0 发布，详见 [LICENSE](LICENSE)。
+

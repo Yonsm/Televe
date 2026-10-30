@@ -24,8 +24,6 @@ import android.widget.TextView;
 
 import net.yonsm.televe.R;
 
-import java.lang.reflect.Field;
-import java.lang.reflect.Method;
 import java.util.ArrayList;
 
 public class ToolMenu extends ArrayList<ToolMenuItem> implements Menu {
@@ -382,16 +380,4 @@ public class ToolMenu extends ArrayList<ToolMenuItem> implements Menu {
 		popup.show();
 	}
 
-	public static void showPopupMenu(PopupMenu popupMenu) {
-		try {
-			Class<?> cls = Class.forName("com.android.internal.view.menu.MenuPopupHelper");
-			Method method = cls.getMethod("setForceShowIcon", boolean.class);
-			Field field = PopupMenu.class.getDeclaredField("mPopup");
-			field.setAccessible(true);
-			method.invoke(field.get(popupMenu), true);
-		} catch (Exception e) {
-			e.printStackTrace();
-		}
-		popupMenu.show();
-	}
 }

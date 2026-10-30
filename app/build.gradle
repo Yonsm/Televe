@@ -4,6 +4,21 @@ plugins {
 
 apply from: '../constants.gradle'
 
+def localProps = new Properties()
+def localFile = rootProject.file('local.properties')
+if (localFile.exists()) {
+    localProps.load(new FileInputStream(localFile))
+}
+def releaseSigningProperties = [
+        'RELEASE_STORE_FILE',
+        'RELEASE_STORE_PASSWORD',
+        'RELEASE_KEY_ALIAS',
+        'RELEASE_KEY_PASSWORD'
+]
+def missingReleaseSigningProperties = releaseSigningProperties.findAll {
+    localProps.getProperty(it)?.trim() == null
+}
+
 android {
     namespace 'net.yonsm.televe'
     compileSdk project.ext.compileSdkVersion
@@ -26,34 +41,14 @@ android {
         }
     }
 
-    // 签名密钥一律从 local.properties(已 gitignore)读取，gradle 文件不存任何明文密码。
-    // DEBUG_*  缺失时回退 AGP 默认 debug 签名(自动生成 debug.keystore)。
-    // RELEASE_* 缺失时回退 DEBUG_* 配置(即 debug/release 共用同一密钥)。
-    def localProps = new Properties()
-    def localFile = rootProject.file('local.properties')
-    if (localFile.exists()) {
-        localProps.load(new FileInputStream(localFile))
-    }
-    def hasDebugSigning = localProps.getProperty('DEBUG_STORE_FILE') != null
-    def hasReleaseSigning = localProps.getProperty('RELEASE_STORE_FILE') != null
-
+    // 签名密钥一律从 local.properties(已 gitignore)读取，Gradle 文件不存任何明文密码。
     signingConfigs {
-        debug {
-            if (hasDebugSigning) {
-                storeFile file(localProps.getProperty('DEBUG_STORE_FILE'))
-                storePassword localProps.getProperty('DEBUG_STORE_PASSWORD')
-                keyAlias localProps.getProperty('DEBUG_KEY_ALIAS')
-                keyPassword localProps.getProperty('DEBUG_KEY_PASSWORD')
-            }
-        }
         release {
-            // 优先用 RELEASE_*；缺失则复用 DEBUG_* (共用密钥)
-            def prefix = hasReleaseSigning ? 'RELEASE' : 'DEBUG'
-            if (hasReleaseSigning || hasDebugSigning) {
-                storeFile file(localProps.getProperty(prefix + '_STORE_FILE'))
-                storePassword localProps.getProperty(prefix + '_STORE_PASSWORD')
-                keyAlias localProps.getProperty(prefix + '_KEY_ALIAS')
-                keyPassword localProps.getProperty(prefix + '_KEY_PASSWORD')
+            if (missingReleaseSigningProperties.isEmpty()) {
+                storeFile file(localProps.getProperty('RELEASE_STORE_FILE'))
+                storePassword localProps.getProperty('RELEASE_STORE_PASSWORD')
+                keyAlias localProps.getProperty('RELEASE_KEY_ALIAS')
+                keyPassword localProps.getProperty('RELEASE_KEY_PASSWORD')
             }
         }
     }
@@ -64,15 +59,12 @@ android {
             minifyEnabled false
             multiDexEnabled true
             proguardFiles 'proguard-rules.pro', getDefaultProguardFile('proguard-android-optimize.txt')
-            // 配了 RELEASE_* 时，debug 也用 release 签名；否则回退 debug 签名
-            signingConfig hasReleaseSigning ? signingConfigs.release : signingConfigs.debug
         }
         release {
             shrinkResources true
             minifyEnabled true
             proguardFiles 'proguard-rules.pro', getDefaultProguardFile('proguard-android-optimize.txt')
-            // 默认共用 debug 签名；配了 RELEASE_* 才用独立 release 签名
-            signingConfig hasReleaseSigning ? signingConfigs.release : signingConfigs.debug
+            signingConfig signingConfigs.release
         }
     }
 
@@ -81,7 +73,25 @@ android {
     }
 
     lint {
-        abortOnError false
+        abortOnError true
+    }
+}
+
+tasks.register('verifyReleaseSigning') {
+    doLast {
+        if (!missingReleaseSigningProperties.isEmpty()) {
+            throw new GradleException('Release signing requires local.properties: '
+                    + missingReleaseSigningProperties.join(', '))
+        }
+        if (!file(localProps.getProperty('RELEASE_STORE_FILE')).isFile()) {
+            throw new GradleException('Release signing keystore does not exist')
+        }
+    }
+}
+
+tasks.configureEach {
+    if (name in ['assembleRelease', 'bundleRelease', 'packageRelease']) {
+        dependsOn('verifyReleaseSigning', 'lintRelease')
     }
 }
 
