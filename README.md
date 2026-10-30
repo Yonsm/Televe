@@ -17,7 +17,7 @@ Televe 是面向 Android 手机、平板和电视的 IPTV 直播应用。
 - 遥控器右键保存截图到 `Pictures/Televe`；Android 9 及以下需授予存储权限。
 - 手机桌面和 Android TV 启动器均可直接启动应用。
 
-默认直播源地址定义在 `internal.playlist.PlaylistRepository.DEFAULT_URL`。列表优先使用本地缓存，菜单中的刷新操作重新请求源列表，手动选择直播源会刷新该源的频道列表。
+默认播放源地址定义在 `internal.playlist.PlaylistRepository.DEFAULT_URL`。菜单中的“播放源”可切换到任意 HTTP 或 HTTPS M3U 地址；确认后会重新请求该地址。应用会自动识别源列表与直接频道列表。
 
 ## 项目结构
 

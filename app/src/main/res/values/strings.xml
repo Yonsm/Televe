@@ -9,7 +9,9 @@
     <string name="aspect_ratio_4_3" translatable="false">4:3</string>
     <string name="only_hd">Only HD</string>
     <string name="press_again_exit">Press back again to exit</string>
-    <string name="refresh_lists">Refresh</string>
+    <string name="source">Source</string>
+    <string name="source_url_hint">HTTP or HTTPS playlist URL</string>
+    <string name="source_url_invalid">Enter a valid HTTP or HTTPS playlist URL</string>
     <string name="snapshot_saved">Saved snapshot: %1$s</string>
     <string name="snapshot_failed">Snapshot failed: %1$s</string>
 </resources>

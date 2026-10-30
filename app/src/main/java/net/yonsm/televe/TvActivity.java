@@ -2,6 +2,7 @@ package net.yonsm.televe;
 
 import androidx.activity.ComponentActivity;
 import androidx.activity.OnBackPressedCallback;
+import android.app.AlertDialog;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.res.Resources;
@@ -24,6 +25,9 @@ import android.view.Menu;
 import android.view.MenuItem;
 import android.view.View;
 import android.view.ViewGroup;
+import android.text.InputType;
+import android.widget.EditText;
+import android.widget.FrameLayout;
 import android.widget.ImageView;
 import android.widget.PopupMenu;
 import android.widget.ProgressBar;
@@ -116,7 +120,8 @@ public class TvActivity extends ComponentActivity {
         mChannelMenu.setAdapter(mChannelAdapter);
         mChannelMenu.setHasFixedSize(true);
         mChannelMenu.setLayoutManager(new GridLayoutManager(this, 2));
-        mIptvSource = new PlaylistRepository(this);
+        mIptvSource = new PlaylistRepository(this,
+                PrefUtils.getConfigPref(this).getString(PrefUtils.CONFIG_PLAYLIST_URL, PlaylistRepository.DEFAULT_URL));
 
 
         mLoadingView = mDrawerLayout.findViewById(R.id.loading);
@@ -441,7 +446,8 @@ public class TvActivity extends ComponentActivity {
     }
 
     private void setupProviderMenu(boolean refresh) {
-        mIptvSource.request(mIptvSource.getRoot(), refresh, new ChannelListener() {
+        final Channel root = mIptvSource.getRoot();
+        mIptvSource.request(root, refresh, new ChannelListener() {
             private List<Channel> mResult;
             private int mIndex = 0;
 
@@ -471,13 +477,83 @@ public class TvActivity extends ComponentActivity {
             @Override
             public void run() {
                 List<Channel> list = mResult;
-                if (!isDestroyed() && list != null && !list.isEmpty()) {
+                if (!isDestroyed() && mIptvSource.getRoot() == root && list != null && !list.isEmpty()) {
                     mProviderList.clear();
-                    mProviderList.addAll(list);
-                    setChannelProvider(mIndex, false);
+                    if (isPlaylistList(list)) {
+                        mProviderList.addAll(list);
+                        setChannelProvider(mIndex, false);
+                    } else {
+                        mProviderList.add(root);
+                        setChannelProvider(0, false);
+                    }
                 }
             }
         });
+    }
+
+    private static boolean isPlaylistList(List<Channel> channels) {
+        for (Channel channel : channels) {
+            if (!channel.playlistSource) return false;
+        }
+        return !channels.isEmpty();
+    }
+
+    private void showSourceEditor() {
+        final EditText input = new EditText(this);
+        input.setSingleLine(true);
+        input.setSelectAllOnFocus(true);
+        input.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_URI);
+        input.setHint(R.string.source_url_hint);
+        input.setText(mIptvSource.getRoot().url);
+
+        int padding = (int) (mDensity * 24);
+        FrameLayout content = new FrameLayout(this);
+        content.setPadding(padding, 0, padding, 0);
+        content.addView(input, new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+
+        AlertDialog dialog = new AlertDialog.Builder(this)
+                .setTitle(R.string.source)
+                .setView(content)
+                .setNegativeButton(android.R.string.cancel, null)
+                .setPositiveButton(android.R.string.ok, null)
+                .create();
+        dialog.setOnShowListener(ignored -> dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(view -> {
+            String url = input.getText().toString().trim();
+            if (!isSourceUrl(url)) {
+                input.setError(getString(R.string.source_url_invalid));
+                return;
+            }
+            updateSource(url);
+            dialog.dismiss();
+        }));
+        dialog.show();
+    }
+
+    private static boolean isSourceUrl(String value) {
+        Uri uri = Uri.parse(value);
+        String scheme = uri.getScheme();
+        return uri.getHost() != null && ("http".equalsIgnoreCase(scheme) || "https".equalsIgnoreCase(scheme));
+    }
+
+    private void updateSource(String url) {
+        boolean changed = !Channel.equals(url, mIptvSource.getRoot().url);
+        if (changed) {
+            mChannel = null;
+            mPlayerView.removeCallbacks(mReplayAction);
+            mPlayerView.stop();
+            PrefUtils.getStatePref(this).edit()
+                    .remove(PrefUtils.STATE_CHANNEL_SERVER)
+                    .remove(PrefUtils.STATE_CHANNEL_URL)
+                    .apply();
+        }
+        mCurrentFolder = null;
+        mProviderList.clear();
+        mChannelList.clear();
+        mProviderView.setText(url);
+        PrefUtils.getConfigPref(this).edit().putString(PrefUtils.CONFIG_PLAYLIST_URL, url).apply();
+        mIptvSource.setRootUrl(url);
+        setupProviderMenu(true);
     }
 
     private void setSystemUiVisible(boolean visible) {
@@ -514,8 +590,8 @@ public class TvActivity extends ComponentActivity {
                     mAspectRatio = 16 / 9f;
                 } else if (itemId == R.id.aspect_ratio_4_3) {
                     mAspectRatio = 4 / 3f;
-                } else if (itemId == R.id.action_refresh_lists) {
-                    setupProviderMenu(true);
+                } else if (itemId == R.id.source) {
+                    showSourceEditor();
                     return true;
                 } else if (itemId == R.id.about) {
                     new AboutDialog(TvActivity.this).show();

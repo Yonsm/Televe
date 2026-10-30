@@ -6,8 +6,8 @@
         android:title="@string/about" />
 
     <item
-        android:id="@+id/action_refresh_lists"
-        android:title="@string/refresh_lists" />
+        android:id="@+id/source"
+        android:title="@string/source" />
 
     <item
         android:id="@+id/aspect_ratio"
