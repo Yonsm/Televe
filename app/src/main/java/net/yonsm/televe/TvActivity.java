@@ -393,7 +393,9 @@ public class TvActivity extends ComponentActivity {
         if (index < 0 || index >= mProviderList.size())
             return;
 
+        final Channel previousFolder = mCurrentFolder;
         final Channel folder = mCurrentFolder = mProviderList.get(index);
+        final boolean switched = refresh && previousFolder != null && previousFolder != folder;
         mProviderView.setText(folder.title);
         mChannelList.clear();
         saveStatusString(PrefUtils.STATE_CHANNEL_SERVER, folder.id);
@@ -403,7 +405,7 @@ public class TvActivity extends ComponentActivity {
 
             @Override
             public void onResult(List<Channel> list) {
-                Channel current = mChannel;
+                Channel current = switched ? null : mChannel;
                 if (list != null) {
                     if (current != null){
                         for (Channel bean : list) {
@@ -435,7 +437,8 @@ public class TvActivity extends ComponentActivity {
                 List<Channel> list = mResult;
                 if (!isDestroyed() && mCurrentFolder == folder && list != null) {
                     mChannelList.replaceAll(list);
-                    if (mChannel == null) {
+                    if (switched || mChannel == null) {
+                        mChannel = null;
                         playChannel(0);
                     } else {
                         fixCurrentIndexIfNecessary();
