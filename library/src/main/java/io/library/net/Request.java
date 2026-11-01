@@ -15,6 +15,9 @@ import java.net.CacheResponse;
 import java.net.HttpURLConnection;
 import java.net.ResponseCache;
 import java.net.URI;
+
+import javax.net.ssl.HttpsURLConnection;
+
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -80,6 +83,10 @@ public class Request {
 	}
 
 	public <T> T execute(Parser<T> parser, HttpClient.Callback callback, boolean forceCache) throws Exception {
+		return execute(parser, callback, forceCache, false);
+	}
+
+	public <T> T execute(Parser<T> parser, HttpClient.Callback callback, boolean forceCache, boolean insecureSSL) throws Exception {
 		fixHeadsIfNeeded();
 
 		if (forceCache) {
@@ -104,7 +111,14 @@ public class Request {
 		}
 
 		final WeakReference<Parser<T>> parserRef = new WeakReference<>(parser);
+		final boolean useInsecureSSL = insecureSSL;
 		return HttpClient.execute(mUrl, mMethod, mHeads, new HttpClient.HttpHandler<T>(callback) {
+			@Override
+			public void onCheckSSL(HttpsURLConnection conn) throws Exception {
+				if (useInsecureSSL) {
+					HttpClient.setInsecureSSLConnection(conn);
+				}
+			}
 			@Override
 			public void onUpload(HttpURLConnection conn) throws Exception {
 				if (mPostBody != null) {

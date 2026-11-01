@@ -20,7 +20,11 @@ import java.util.List;
 import java.util.Map;
 
 import javax.net.SocketFactory;
+import javax.net.ssl.SSLContext;
 import javax.net.ssl.SSLSocketFactory;
+import javax.net.ssl.TrustManager;
+import javax.net.ssl.X509TrustManager;
+import java.security.cert.X509Certificate;
 
 public abstract class SimpleBaseClient implements Closeable {
     public static final String CONTENT_LENGTH = "Content-Length";
@@ -97,6 +101,25 @@ public abstract class SimpleBaseClient implements Closeable {
         }
     }
 
+    private static SSLSocketFactory sInsecureSSLSocketFactory;
+
+    private static synchronized SSLSocketFactory getInsecureSSLSocketFactory() {
+        if (sInsecureSSLSocketFactory == null) {
+            try {
+                SSLContext context = SSLContext.getInstance("TLS");
+                context.init(null, new TrustManager[] { new X509TrustManager() {
+                    public void checkClientTrusted(X509Certificate[] chain, String authType) {}
+                    public void checkServerTrusted(X509Certificate[] chain, String authType) {}
+                    public X509Certificate[] getAcceptedIssuers() { return new X509Certificate[0]; }
+                } }, null);
+                sInsecureSSLSocketFactory = context.getSocketFactory();
+            } catch (Exception e) {
+                throw new RuntimeException(e);
+            }
+        }
+        return sInsecureSSLSocketFactory;
+    }
+
     private Socket mSocket;
     protected BufferedInputStream mInStream;
     protected BufferedOutputStream mOutStream;
@@ -125,7 +148,7 @@ public abstract class SimpleBaseClient implements Closeable {
         if (port == -1)
             port = getDefaultPort(scheme);
 
-        SocketFactory factory = isSecure(scheme) ? SSLSocketFactory.getDefault() : SocketFactory.getDefault();
+        SocketFactory factory = isSecure(scheme) ? getInsecureSSLSocketFactory() : SocketFactory.getDefault();
         IOException lastError = null;
         InetAddress[] addresses = InetAddress.getAllByName(uri.getHost());
         for (int family = 0; family < 2 && mSocket == null; family++) {

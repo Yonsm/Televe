@@ -59,8 +59,8 @@ public class PlaylistRepository implements AutoCloseable {
                         Long.toHexString(DiskCache.hash64(url))));
                 List<Channel> channels = refresh ? null : readCache(cache, url);
                 if (channels == null) {
-                    channels = new Request(url, "GET", false)
-                            .execute(new PlaylistParser(rootPlaylist));
+                    channels = new Request(url, "GET", false).execute(
+                            new PlaylistParser(rootPlaylist), null, false, true);
                     writeCache(cache, url, channels);
                 }
                 if (!closed) listener.onResult(channels);
