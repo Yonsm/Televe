@@ -15,15 +15,21 @@ public class SimpleRtspClient extends SimpleBaseClient {
 
     @Override
     public Response open(Request request) throws IOException {
+        return open(request, 0);
+    }
+
+    private Response open(Request request, int redirects) throws IOException {
         super.connect(request);
 
         sendDescribe();
         Response response = receiveHeaders();
         if (response.shouldRedirect()) {
             String location = findLocationOrThrow(response);
+            if (redirects >= 5) // 防止源站重定向成环导致递归溢出
+                throw new IOException("Too many redirects: " + request.url);
             request.url = URI.create(request.url).resolve(location).toString();
             close();
-            return open(request);
+            return open(request, redirects + 1);
         }
         response.throwIfFailed();
         if (response.contentLength > 0) {

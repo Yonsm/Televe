@@ -11,6 +11,7 @@ import android.view.TextureView;
 import androidx.media3.common.C;
 import androidx.media3.common.Format;
 import androidx.media3.common.MediaItem;
+import androidx.media3.common.MimeTypes;
 import androidx.media3.common.PlaybackException;
 import androidx.media3.common.PlaybackParameters;
 import androidx.media3.common.Player;
@@ -121,7 +122,7 @@ public class PlayerView extends TextureView implements TextureView.SurfaceTextur
             mVideoWidth = 0;
             mVideoHeight = 0;
             requestLayout();
-            MediaItem mediaItem = buildMediaItem(uri, subtitleUri, subtitleType);
+            MediaItem mediaItem = buildMediaItem(uri, type, subtitleUri, subtitleType);
             // 把按 scheme 选出的 DataSource 工厂(rtsp/http)注入 MediaSource。
             // 否则 ExoPlayer 退回默认 DataSource 去读 自定义 scheme，无法播放。
             DataSource.Factory dataSourceFactory = buildSourceFactory(context, uri, headers, null);
@@ -477,8 +478,17 @@ public class PlayerView extends TextureView implements TextureView.SurfaceTextur
         return factory;
     }
 
-    public static MediaItem buildMediaItem(Uri uri, Uri subtitleUri, String subtitleType) {
+    public static MediaItem buildMediaItem(Uri uri, int type, Uri subtitleUri, String subtitleType) {
         MediaItem.Builder builder = new MediaItem.Builder().setUri(uri);
+
+        // 显式声明流类型：不以 .m3u8/.mpd 结尾的 HLS/DASH 地址，
+        // DefaultMediaSourceFactory 按 URI 推断会误判为普通流导致起播失败
+        if (type == C.CONTENT_TYPE_HLS) {
+            builder.setMimeType(MimeTypes.APPLICATION_M3U8);
+        } else if (type == C.CONTENT_TYPE_DASH) {
+            builder.setMimeType(MimeTypes.APPLICATION_MPD);
+        }
+        // RTSP 不设置：由 ClientDataSource 把 RTP over TCP 还原成 TS 交给 Progressive 解析
 
         if (subtitleUri != null) {
             String mime = subtitleType != null ? subtitleType : "text/x-srt";

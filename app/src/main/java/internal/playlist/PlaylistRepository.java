@@ -36,6 +36,8 @@ public class PlaylistRepository implements AutoCloseable {
 
     public PlaylistRepository(Context context, String rootUrl) {
         directory = new File(context.getFilesDir(), "playlists");
+        // AtomicFile 不会创建父目录，缺少这步缓存会静默失效（每次启动都重新联网拉取）
+        if (!directory.isDirectory()) directory.mkdirs();
         setRootUrl(rootUrl);
     }
 
