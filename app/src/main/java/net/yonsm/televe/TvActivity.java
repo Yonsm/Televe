@@ -23,6 +23,7 @@ import android.view.KeyEvent;
 import android.view.LayoutInflater;
 import android.view.Menu;
 import android.view.MenuItem;
+import android.view.MotionEvent;
 import android.view.View;
 import android.view.ViewGroup;
 import android.text.InputType;
@@ -131,6 +132,12 @@ public class TvActivity extends ComponentActivity {
         mPlayerView.setKeepScreenOn(true);
         mPlayerView.setOnClickListener(mClickListener);
         mPlayerView.setOnKeyListener(mKeyListener);
+        mPlayerView.setOnLongClickListener(v -> {
+            mLongPressed = true;
+            saveSnapshot();
+            return true;
+        });
+        mPlayerView.setOnTouchListener(mTouchListener);
         mPlayerView.requestFocus();
 
         if (mPlayerView.getAspectRatio() != mAspectRatio) {
@@ -795,6 +802,32 @@ public class TvActivity extends ComponentActivity {
             } else if (view == mProviderView) {
                 showProviderMenu();
             }
+        }
+    };
+
+    private float mTouchDownY;
+    private boolean mLongPressed;
+
+    private final View.OnTouchListener mTouchListener = new View.OnTouchListener() {
+        @Override
+        public boolean onTouch(View v, MotionEvent event) {
+            switch (event.getAction()) {
+                case MotionEvent.ACTION_DOWN:
+                    mTouchDownY = event.getY();
+                    mLongPressed = false;
+                    break;
+                case MotionEvent.ACTION_UP:
+                    float dy = event.getY() - mTouchDownY;
+                    if (!mLongPressed && Math.abs(dy) > 40 * mDensity) {
+                        playNextItem(dy > 0);
+                        return true;
+                    }
+                    break;
+                case MotionEvent.ACTION_CANCEL:
+                    mLongPressed = true;
+                    break;
+            }
+            return false;
         }
     };
 
