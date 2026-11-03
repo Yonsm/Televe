@@ -10,7 +10,6 @@ import org.xmlpull.v1.XmlPullParserFactory;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.OutputStream;
-import java.lang.ref.WeakReference;
 import java.net.CacheResponse;
 import java.net.HttpURLConnection;
 import java.net.ResponseCache;
@@ -110,7 +109,6 @@ public class Request {
 			}
 		}
 
-		final WeakReference<Parser<T>> parserRef = new WeakReference<>(parser);
 		final boolean useInsecureSSL = insecureSSL;
 		return HttpClient.execute(mUrl, mMethod, mHeads, new HttpClient.HttpHandler<T>(callback) {
 			@Override
@@ -138,8 +136,7 @@ public class Request {
 			}
 			@Override
 			public T onDownload(int statusCode, String mimeType, String charset, long length, InputStream stream) throws Exception {
-				Parser<T> parser1 = parserRef.get();
-				return parser1 != null ? parser1.onParse(mimeType, charset, stream, false) : null;
+				return parser.onParse(mimeType, charset, stream, false);
 			}
 		});
 	}

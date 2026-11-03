@@ -564,9 +564,10 @@ public class HttpClient {
 				}
 				T result = null;
 				if ((statusCode == HttpURLConnection.HTTP_MOVED_TEMP || statusCode == HttpURLConnection.HTTP_MOVED_PERM ||
-						statusCode == HttpURLConnection.HTTP_SEE_OTHER) && (redirectUrl = conn.getHeaderField("Location")) != null) {
+						statusCode == HttpURLConnection.HTTP_SEE_OTHER || statusCode == 307 || statusCode == 308)
+						&& (redirectUrl = conn.getHeaderField("Location")) != null) {
 					// even getInstanceFollowRedirects() will be true by default, https to http or http to https will not be redirected.
-					url = redirectUrl;
+					url = new URL(conn.getURL(), redirectUrl).toExternalForm();
 					cookies = conn.getHeaderField("Set-Cookie");
 					if (handler.onRedirect(conn, url))
 						continue;
