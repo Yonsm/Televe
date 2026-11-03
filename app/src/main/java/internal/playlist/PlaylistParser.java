@@ -48,7 +48,7 @@ public class PlaylistParser implements Request.Parser<List<Channel>> {
                         channel.thumbnail = LOGO_BASE + channel.id.replace("-", "").replace("HD", "").trim() + ".jpg";
                     }
                     channel.playlist = providers;
-                    channel.playlistSource = pending != null && pending.playlist && isPlaylistUrl(channel.url);
+                    channel.playlistSource = (pending != null && pending.playlist) || isPlaylistUrl(channel.url);
                     result.add(channel);
                     pending = null;
                 } else {
@@ -105,7 +105,7 @@ public class PlaylistParser implements Request.Parser<List<Channel>> {
         if (Channel.isEmpty(channel.id)) channel.id = attributes.get("server-id");
         if (Channel.isEmpty(channel.id)) channel.id = attributes.get("tvg-id");
         channel.thumbnail = attributes.get("tvg-logo");
-        boolean playlist = attributes.containsKey("server-id") || !attributes.containsKey("group-title");
+        boolean playlist = attributes.containsKey("server-id");
         return new PendingEntry(channel, playlist);
     }
 
@@ -116,7 +116,7 @@ public class PlaylistParser implements Request.Parser<List<Channel>> {
         if (query >= 0) end = query;
         if (fragment >= 0) end = Math.min(end, fragment);
         String lower = url.substring(0, end).toLowerCase(java.util.Locale.US);
-        return lower.endsWith(".m3u") || lower.endsWith(".m3u8");
+        return lower.endsWith(".m3u");
     }
 
     private static final class PendingEntry {
