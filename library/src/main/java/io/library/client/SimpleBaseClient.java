@@ -79,7 +79,9 @@ public abstract class SimpleBaseClient implements Closeable {
         public boolean shouldRedirect() {
             return statusLine == StatusLine.MOVED_PERMANENTLY
                     || statusLine == StatusLine.MOVED_TEMPORARILY
-                    || statusLine == StatusLine.TEMPORARY_REDIRECT;
+                    || statusLine == StatusLine.REDIRECT_SEE_OTHER
+                    || statusLine == StatusLine.TEMPORARY_REDIRECT
+                    || statusLine == StatusLine.PERMANENT_REDIRECT;
         }
 
         public Map<String, List<String>> toMultiMap() {
@@ -210,6 +212,8 @@ public abstract class SimpleBaseClient implements Closeable {
         String statusLine = line.substring(protocol.length()).trim();
         Response response = new Response();
         response.statusLine = StatusLine.parse(statusLine);
+        if (response.statusLine == null)
+            throw new IOException("Unsupported response status: " + statusLine);
 
         for (;;) {
             line = readUtf8Line(mInStream, mLineBuffer);

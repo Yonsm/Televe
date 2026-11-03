@@ -8,6 +8,7 @@ import androidx.media3.datasource.DataSource;
 import androidx.media3.datasource.DataSpec;
 import androidx.media3.datasource.HttpDataSource;
 
+import java.io.EOFException;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.List;
@@ -50,8 +51,21 @@ public class ClientDataSource extends BaseDataSource implements HttpDataSource {
 
         try {
             mResponse = mClient.open(request);
-            mBytesRemain = dataSpec.length != C.LENGTH_UNSET ? dataSpec.length
-                    : (mResponse.contentLength > 0 ? mResponse.contentLength : C.LENGTH_UNSET);
+            long bytesToSkip = mClient instanceof SimpleHttpClient && mResponse.statusLine.code == 200
+                    ? dataSpec.position : 0;
+            if (bytesToSkip > 0) {
+                if (mResponse.contentLength > 0 && bytesToSkip > mResponse.contentLength)
+                    throw new EOFException("Requested position exceeds response length");
+                byte[] buffer = new byte[4096];
+                for (long remaining = bytesToSkip; remaining > 0; ) {
+                    int read = mClient.read(buffer, 0, (int) Math.min(buffer.length, remaining));
+                    if (read == -1) throw new EOFException("Requested position exceeds response length");
+                    remaining -= read;
+                }
+            }
+            long contentLength = mResponse.contentLength > 0 ? mResponse.contentLength - bytesToSkip : C.LENGTH_UNSET;
+            mBytesRemain = dataSpec.length == C.LENGTH_UNSET ? contentLength
+                    : contentLength == C.LENGTH_UNSET ? dataSpec.length : Math.min(dataSpec.length, contentLength);
             return mBytesRemain;
         } catch (IOException e) {
             throw new HttpDataSourceException(e, dataSpec, HttpDataSourceException.TYPE_OPEN);
@@ -60,11 +74,11 @@ public class ClientDataSource extends BaseDataSource implements HttpDataSource {
 
     @Override
     public int read(byte[] buffer, int offset, int readLength) throws HttpDataSourceException {
+        if (readLength == 0)
+            return 0;
         SimpleBaseClient client = mClient;
         if (client == null || mBytesRemain == 0)
             return C.RESULT_END_OF_INPUT;
-        else if (readLength == 0)
-            return 0;
 
         try {
             if (mBytesRemain != C.LENGTH_UNSET && readLength > mBytesRemain)

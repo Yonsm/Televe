@@ -16,6 +16,7 @@ public enum StatusLine {
     REDIRECT_SEE_OTHER(303, "See Other"),
     NOT_MODIFIED(304, "Not Modified"),
     TEMPORARY_REDIRECT(307, "Temporary Redirect"),
+    PERMANENT_REDIRECT(308, "Permanent Redirect"),
 
     BAD_REQUEST(400, "Bad Request"),
     UNAUTHORIZED(401, "Unauthorized"),

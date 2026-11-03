@@ -101,11 +101,13 @@ public class SimpleHttpClient extends SimpleBaseClient {
 
     protected void sendMethod(String method) throws IOException {
         String path = mUri.getRawPath();
+        if (isEmpty(path)) path = "/";
         String query = mUri.getRawQuery();
         if (!isEmpty(query))
             path += '?' + query;
         StringBuilder builder = super.makeBaseMessage(method, path)
-                .append("Host: ").append(mUri.getHost()).append(CRLF)
+                .append("Host: ").append(mUri.getHost())
+                .append(mUri.getPort() == -1 ? "" : ":" + mUri.getPort()).append(CRLF)
                 .append("Accept-Encoding: identity").append(CRLF)
                 .append("Connection: Keep-Alive").append(CRLF)
                 .append("User-Agent: ").append(USER_AGENT).append(CRLF);
