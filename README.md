@@ -5,7 +5,7 @@ Televe 是面向 Android 手机、平板和电视的 IPTV 直播应用。
 - 包名：`net.yonsm.televe`
 - 最低系统版本：Android 6.0（API 23）
 - 编译和目标 SDK：36
-- 版本：2.1.0
+- 版本：2.1.1（versionCode 3）
 - CPU 架构：`armeabi-v7a`、`arm64-v8a`
 
 ## 功能
@@ -21,6 +21,20 @@ Televe 是面向 Android 手机、平板和电视的 IPTV 直播应用。
 
 默认播放源地址定义在 `internal.playlist.PlaylistRepository.DEFAULT_URL`。菜单中的“播放源”可切换到任意 HTTP 或 HTTPS M3U 地址；确认后会重新请求该地址。应用会自动识别源列表与直接频道列表。
 
+### 播放源格式与兼容性
+
+普通频道列表可直接包含 `.m3u8` 直播地址，无需分组。来源列表可引用 `.m3u` 文件；使用 `.m3u8` 或无扩展名的列表地址时，在 M3U 条目中以 `server-id` 明确标记来源：
+
+```m3u
+#EXTM3U
+#EXTINF:1 server-id="main",主播放源
+https://example.com/channels.m3u8
+```
+
+手动选择来源会刷新其频道列表。升级后，旧格式的列表缓存会自动重新拉取。
+
+为兼容旧系统根证书库，播放源与 HTTP(S) 媒体请求不强制校验 HTTPS 服务端证书。请仅使用可信来源；该兼容策略不能保证服务端身份，也不能解决所有旧系统 TLS 协议兼容问题。
+
 ## 项目结构
 
 ```text
@@ -34,7 +48,7 @@ library/             播放器、网络与必要的界面工具
 
 ## 构建
 
-需要已安装且与 Android Gradle Plugin 兼容的 JDK 及 Android SDK 36。项目不固定 Gradle Daemon 的 JDK 版本；本机 JBR 21 已用于构建验证。通过 Android Studio 打开仓库根目录，或在 `local.properties` 配置本机 `sdk.dir` 后执行：
+需要已安装且与 Android Gradle Plugin 兼容的 JDK（推荐 JDK 21）及 Android SDK 36。项目不固定 Gradle Daemon 的 JDK 路径。通过 Android Studio 打开仓库根目录，或在 `local.properties` 配置本机 `sdk.dir` 后执行：
 
 ```sh
 ./gradlew :app:assembleDebug
@@ -57,6 +71,16 @@ Release 构建必须配置以上四个参数，缺失时会失败，不会回退
 
 应用的设置和列表缓存属于自身包名。其他应用的数据不会自动导入。
 
+### 发布与安装
+
+发布使用 `:app:assembleRelease` 生成的签名 APK。该任务包含 Release lint 检查，产物经过代码混淆与资源裁剪，仅包含上述两种 ARM 架构。
+
+```sh
+adb install -r app/build/outputs/apk/release/Televe.apk
+```
+
+覆盖升级必须沿用旧版本的签名证书；签名不一致时不能直接升级。卸载旧版会清除其设置与列表缓存。
+
 ## 更新日志
 
 版本变更记录见 [CHANGELOG.md](CHANGELOG.md)。
@@ -64,4 +88,6 @@ Release 构建必须配置以上四个参数，缺失时会失败，不会回退
 ## 授权
 
 以 GNU General Public License v3.0 发布，详见 [LICENSE](LICENSE)。
+
+播放器基于 [AndroidX Media3](https://github.com/androidx/media)，音频软件解码使用 [Jellyfin FFmpeg 扩展](https://github.com/jellyfin/jellyfin-androidx-media)（`org.jellyfin.media3:media3-ffmpeg-decoder:1.5.0+1`）。各依赖的源码与许可证见其上游仓库。
 
