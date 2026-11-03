@@ -803,9 +803,16 @@ public class TvActivity extends ComponentActivity {
                     mTouchDownY = event.getY();
                     mLongPressed = false;
                     break;
+                case MotionEvent.ACTION_MOVE:
+                    if (Math.abs(event.getY() - mTouchDownY) > 40 * mDensity)
+                        v.cancelLongPress();
+                    break;
                 case MotionEvent.ACTION_UP:
                     float dy = event.getY() - mTouchDownY;
                     if (!mLongPressed && Math.abs(dy) > 40 * mDensity) {
+                        event.setAction(MotionEvent.ACTION_CANCEL);
+                        v.onTouchEvent(event);
+                        event.setAction(MotionEvent.ACTION_UP);
                         playNextItem(dy > 0);
                         return true;
                     }
