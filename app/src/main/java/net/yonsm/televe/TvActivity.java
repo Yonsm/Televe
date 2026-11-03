@@ -545,6 +545,7 @@ public class TvActivity extends ComponentActivity {
                     .apply();
         }
         mCurrentFolder = null;
+        mProviderChanged = false;
         mProviderList.clear();
         mChannelList.clear();
         mProviderView.setText(url);
