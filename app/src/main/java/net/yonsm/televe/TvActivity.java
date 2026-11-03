@@ -171,7 +171,6 @@ public class TvActivity extends ComponentActivity {
             }
         }
         mChannel = channel;
-        mWindowHasFocus = true; // to play in onResume()
         setupProviderMenu(false);
     }
 
@@ -193,9 +192,9 @@ public class TvActivity extends ComponentActivity {
     protected void onPause() {
         super.onPause();
 
+        mResumed = false;
         mPlayerView.removeCallbacks(mReplayAction);
         mPlayerView.stop();
-        // 停止时间更新回调，避免后台/失焦时仍每秒重绘（低端 TV 省电省 CPU）
         if (mTimeView != null)
             mTimeView.removeCallbacks(mUpdateTimeAction);
     }
@@ -204,9 +203,10 @@ public class TvActivity extends ComponentActivity {
     public void onResume() {
         super.onResume();
 
+        mResumed = true;
         scheduleTimeUpdate();
 
-        if (mWindowHasFocus && mChannel != null)
+        if (mChannel != null)
             playChannel(mChannel);
     }
 
@@ -233,15 +233,7 @@ public class TvActivity extends ComponentActivity {
         finishAndRemoveTask();
     }
 
-    private boolean mWindowHasFocus;
-    @Override
-    public void onWindowFocusChanged(boolean hasFocus) {
-        super.onWindowFocusChanged(hasFocus);
-
-        if (!mWindowHasFocus && hasFocus && mChannel != null)
-            playChannel(mChannel);
-        mWindowHasFocus = hasFocus;
-    }
+    private boolean mResumed;
 
     @Override
     public boolean onKeyUp(int keyCode, KeyEvent event) {
@@ -294,12 +286,13 @@ public class TvActivity extends ComponentActivity {
     }
 
     private void playChannel(Channel channel) {
+        mToolbar.setTitle(channel.title);
+        if (!mResumed) return;
         Uri uri = Uri.parse(channel.url);
         int sourceType = PlayerView.getFixedSourceType(uri, true);
         mPlayerView.removeCallbacks(mReplayAction);
         mPlaybackStartTime = System.currentTimeMillis();
         mPlayerView.setUri(this, uri, null, sourceType);
-        mToolbar.setTitle(channel.title);
     }
 
     private void playChannel(int index) {
@@ -782,7 +775,7 @@ public class TvActivity extends ComponentActivity {
 
         @Override
         public void onError(int param1, int param2, Exception cause) {
-            if (mChannel != null) {
+            if (mResumed && mChannel != null) {
                 mPlayerView.removeCallbacks(mReplayAction);
                 mPlayerView.postDelayed(mReplayAction, REPLAY_DELAY);
             }

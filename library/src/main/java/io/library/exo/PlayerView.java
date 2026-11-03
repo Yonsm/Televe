@@ -362,7 +362,9 @@ public class PlayerView extends TextureView implements TextureView.SurfaceTextur
 
     @Override
     public boolean onSurfaceTextureDestroyed(SurfaceTexture surface) {
-        release();
+        if (mExoPlayer != null)
+            mExoPlayer.clearVideoSurface();
+        releaseSurface();
         Log.d(TAG, "onSurfaceTextureDestroyed " + surface);
         return true;
     }
