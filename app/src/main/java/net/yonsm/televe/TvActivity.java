@@ -388,6 +388,8 @@ public class TvActivity extends ComponentActivity {
     }
 
     private Channel mCurrentFolder = null;
+    private int mChannelRequest;
+    private boolean mProviderChanged;
 
     private void setChannelProvider(int index, boolean refresh) {
         if (index < 0 || index >= mProviderList.size())
@@ -395,7 +397,8 @@ public class TvActivity extends ComponentActivity {
 
         final Channel previousFolder = mCurrentFolder;
         final Channel folder = mCurrentFolder = mProviderList.get(index);
-        final boolean switched = refresh && previousFolder != null && previousFolder != folder;
+        final int request = ++mChannelRequest;
+        mProviderChanged |= previousFolder != null && previousFolder != folder;
         mProviderView.setText(folder.title);
         mChannelList.clear();
         saveStatusString(PrefUtils.STATE_CHANNEL_SERVER, folder.id);
@@ -405,24 +408,7 @@ public class TvActivity extends ComponentActivity {
 
             @Override
             public void onResult(List<Channel> list) {
-                Channel current = switched ? null : mChannel;
-                if (list != null) {
-                    if (current != null){
-                        for (Channel bean : list) {
-                            if (Channel.equals(bean.url, current.url)) {
-                                mChannel = bean;
-                                break;
-                            }
-                        }
-                    }
-                    if (mOnlyHD) {
-                        for (int i = list.size() - 1; i >= 0; i--) {
-                            if (!isHD(list.get(i).title))
-                                list.remove(i);
-                        }
-                    }
-                    mResult = list;
-                }
+                mResult = list;
                 runOnUiThread(this);
             }
 
@@ -435,10 +421,18 @@ public class TvActivity extends ComponentActivity {
             @Override
             public void run() {
                 List<Channel> list = mResult;
-                if (!isDestroyed() && mCurrentFolder == folder && list != null) {
+                if (!isDestroyed() && request == mChannelRequest && mCurrentFolder == folder && list != null) {
+                    if (mOnlyHD) {
+                        for (int i = list.size() - 1; i >= 0; i--) {
+                            if (!isHD(list.get(i).title)) list.remove(i);
+                        }
+                    }
                     mChannelList.replaceAll(list);
-                    if (switched || mChannel == null) {
+                    if (mProviderChanged && !list.isEmpty()) {
                         mChannel = null;
+                        mProviderChanged = false;
+                    }
+                    if (mChannel == null) {
                         playChannel(0);
                     } else {
                         fixCurrentIndexIfNecessary();
