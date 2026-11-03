@@ -40,8 +40,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CopyOnWriteArrayList;
 
-import io.library.client.SimpleHttpClient;
-
 public class PlayerView extends TextureView implements TextureView.SurfaceTextureListener {
     private static final String TAG = "PlayerView";
 
@@ -349,8 +347,6 @@ public class PlayerView extends TextureView implements TextureView.SurfaceTextur
 
     @Override
     public void onSurfaceTextureAvailable(SurfaceTexture surface, int width, int height) {
-        if (mExoPlayer == null)
-            createPlayer();
         setSurface(surface);
         Log.d(TAG, "onSurfaceTextureAvailable " + surface + ": " + width + "x" + height);
     }
@@ -459,8 +455,9 @@ public class PlayerView extends TextureView implements TextureView.SurfaceTextur
     }
 
     public static DataSource.Factory buildDefaultFactory(Context context, Map<String, String> headers, androidx.media3.datasource.TransferListener listener) {
+        String agent = Util.getUserAgent(context, context.getPackageName());
         DefaultHttpDataSource.Factory httpFactory = new DefaultHttpDataSource.Factory()
-                .setUserAgent(SimpleHttpClient.USER_AGENT)
+                .setUserAgent(agent)
                 .setConnectTimeoutMs(TIMEOUT_CONNECT)
                 .setReadTimeoutMs(TIMEOUT_READ)
                 .setAllowCrossProtocolRedirects(true);
