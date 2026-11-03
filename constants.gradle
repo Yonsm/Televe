@@ -5,5 +5,5 @@ project.ext {
     compileSdkVersion = 36
     targetSdkVersion = 36
 
-    media3Version = '1.4.1'
+    media3Version = '1.5.0'
 }

@@ -17,6 +17,7 @@ Televe 是面向 Android 手机、平板和电视的 IPTV 直播应用。
 - 直播源菜单支持高清筛选、默认比例、16:9 和 4:3。
 - 遥控器右键或长按画面保存截图到 `Pictures/Televe`；Android 9 及以下需授予存储权限。
 - 手机桌面和 Android TV 启动器均可直接启动应用。
+- 系统缺少相应音频解码器时，使用 FFmpeg 软件解码 MP2、AC-3 等音频。
 
 默认播放源地址定义在 `internal.playlist.PlaylistRepository.DEFAULT_URL`。菜单中的“播放源”可切换到任意 HTTP 或 HTTPS M3U 地址；确认后会重新请求该地址。应用会自动识别源列表与直接频道列表。
 
@@ -55,10 +56,6 @@ RELEASE_KEY_PASSWORD=your-key-password
 Release 构建必须配置以上四个参数，缺失时会失败，不会回退为调试签名。密钥路径、别名和密码仅保存在未纳入版本控制的本机 `local.properties` 中。
 
 应用的设置和列表缓存属于自身包名。其他应用的数据不会自动导入。
-
-## 已知问题
-
-- 荣耀部分机型缺失 MPEG-1/2 Layer II（MP2）与 Dolby Digital（AC-3）音频解码器，播放音频编码为此二者（如 `MPEG2-L2`、`AC3`）的直播源时会播放失败或没有声音。此类源更换其他设备可正常播放。
 
 ## 更新日志
 

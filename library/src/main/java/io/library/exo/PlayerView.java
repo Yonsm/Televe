@@ -444,7 +444,9 @@ public class PlayerView extends TextureView implements TextureView.SurfaceTextur
         DefaultLoadControl loadControl = new DefaultLoadControl.Builder()
                 .setBufferDurationsMs(DEFAULT_MIN_BUFFER_MS, DEFAULT_MAX_BUFFER_MS, DEFAULT_MIN_BUFFER_MS / 2, DEFAULT_MIN_BUFFER_MS)
                 .build();
-        DefaultRenderersFactory rendererFactory = new DefaultRenderersFactory(context);
+        DefaultRenderersFactory rendererFactory = new DefaultRenderersFactory(context)
+                .setExtensionRendererMode(DefaultRenderersFactory.EXTENSION_RENDERER_MODE_ON)
+                .setEnableDecoderFallback(true);
         return new ExoPlayer.Builder(context)
                 .setRenderersFactory(rendererFactory)
                 .setTrackSelector((DefaultTrackSelector) trackSelector)
