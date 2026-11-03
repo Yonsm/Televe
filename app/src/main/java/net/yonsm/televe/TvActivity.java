@@ -869,7 +869,7 @@ public class TvActivity extends ComponentActivity {
                     case KeyEvent.KEYCODE_DPAD_DOWN:
                         return playNextItem(true);
                     case KeyEvent.KEYCODE_DPAD_RIGHT:
-                        saveSnapshot();
+                        if (event.getRepeatCount() == 0) saveSnapshot();
                         return true;
                 }
             }
