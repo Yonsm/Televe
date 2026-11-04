@@ -19,7 +19,6 @@ import io.library.utils.DiskCache;
 /** Persists lists locally until an explicit refresh is requested. */
 public class PlaylistRepository implements AutoCloseable {
     public static final String DEFAULT_URL = "https://yonsm.github.io/IPTV/lists.m3u8";
-    private static final int CACHE_VERSION = 8;
     private final ExecutorService executor = Executors.newSingleThreadExecutor();
     private final File directory;
     private volatile Channel root;
@@ -36,7 +35,7 @@ public class PlaylistRepository implements AutoCloseable {
 
     public PlaylistRepository(Context context, String rootUrl) {
         directory = new File(context.getFilesDir(), "playlists");
-        // AtomicFile 不会创建父目录，缺少这步缓存会静默失效（每次启动都重新联网拉取）
+        // AtomicFile 不会创建父目录。
         if (!directory.isDirectory()) directory.mkdirs();
         setRootUrl(rootUrl);
     }
@@ -74,7 +73,7 @@ public class PlaylistRepository implements AutoCloseable {
 
     private List<Channel> readCache(AtomicFile file, String url) {
         try (DataInputStream input = new DataInputStream(file.openRead())) {
-            if (input.readInt() != CACHE_VERSION || !url.equals(input.readUTF())) return null;
+            if (!url.equals(input.readUTF())) return null;
             int count = input.readInt();
             if (count < 0 || count > 100000) return null;
             List<Channel> channels = new ArrayList<>(count);
@@ -90,7 +89,6 @@ public class PlaylistRepository implements AutoCloseable {
         try {
             stream = file.startWrite();
             DataOutputStream output = new DataOutputStream(stream);
-            output.writeInt(CACHE_VERSION);
             output.writeUTF(url);
             output.writeInt(channels.size());
             for (Channel channel : channels) channel.writeTo(output);
