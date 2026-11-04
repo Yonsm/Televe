@@ -11,6 +11,7 @@ import androidx.media3.datasource.HttpDataSource;
 import java.io.EOFException;
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
@@ -31,6 +32,7 @@ public class ClientDataSource extends BaseDataSource implements HttpDataSource {
 
     @Override
     public long open(DataSpec dataSpec) throws HttpDataSourceException {
+        mResponse = null;
         String method = dataSpec.httpBody != null ? "POST" : "GET";
         ByteBuffer body = dataSpec.httpBody != null ? ByteBuffer.wrap(dataSpec.httpBody) : null;
         SimpleBaseClient.Request request = new SimpleBaseClient.Request(method, dataSpec.uri.toString(), body);
@@ -109,12 +111,12 @@ public class ClientDataSource extends BaseDataSource implements HttpDataSource {
 
     @Override
     public int getResponseCode() {
-        return mResponse.statusLine.code;
+        return mResponse != null ? mResponse.statusLine.code : -1;
     }
 
     @Override
     public Map<String, List<String>> getResponseHeaders() {
-        return mResponse.toMultiMap();
+        return mResponse != null ? mResponse.toMultiMap() : Collections.emptyMap();
     }
 
     @Override
@@ -127,6 +129,7 @@ public class ClientDataSource extends BaseDataSource implements HttpDataSource {
     public void close() throws HttpDataSourceException {
         SimpleBaseClient client = mClient;
         mClient = null;
+        mResponse = null;
         if (client != null)
             client.close();
     }

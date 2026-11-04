@@ -9,6 +9,7 @@ import android.view.Surface;
 import android.view.TextureView;
 
 import androidx.media3.common.C;
+import androidx.media3.common.FileTypes;
 import androidx.media3.common.Format;
 import androidx.media3.common.MediaItem;
 import androidx.media3.common.MimeTypes;
@@ -507,10 +508,9 @@ public class PlayerView extends TextureView implements TextureView.SurfaceTextur
 
     public static int getFixedSourceType(Uri uri, boolean live) {
         int sourceType = Util.inferContentType(uri);
-        if (sourceType == C.CONTENT_TYPE_OTHER && isWebUri(uri)) {
-            final String path = uri.getPath();
-            if (path != null && path.endsWith("m3u8"))
-                sourceType = C.CONTENT_TYPE_HLS;
+        if (sourceType == C.CONTENT_TYPE_OTHER && isWebUri(uri)
+                && FileTypes.inferFileTypeFromUri(uri) == FileTypes.UNKNOWN) {
+            sourceType = C.CONTENT_TYPE_HLS;
         }
         return sourceType;
     }
