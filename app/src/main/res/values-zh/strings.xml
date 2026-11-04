@@ -1,4 +1,7 @@
 <resources>
+    <string name="channel_number_name">%1$s. %2$s</string>
+    <string name="channel_number_invalid">频道 %1$s 不存在</string>
+    <string name="channel_list_empty">暂无可用频道</string>
     <string name="channel_info">频道信息</string>
     <string name="channel_name">频道名称</string>
     <string name="channel_url">源地址</string>

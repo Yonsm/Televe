@@ -19,7 +19,7 @@ import io.library.utils.DiskCache;
 /** Persists lists locally until an explicit refresh is requested. */
 public class PlaylistRepository implements AutoCloseable {
     public static final String DEFAULT_URL = "https://yonsm.github.io/IPTV/lists.m3u8";
-    private static final int CACHE_VERSION = 4;
+    private static final int CACHE_VERSION = 8;
     private final ExecutorService executor = Executors.newSingleThreadExecutor();
     private final File directory;
     private volatile Channel root;

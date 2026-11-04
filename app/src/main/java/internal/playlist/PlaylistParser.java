@@ -73,6 +73,13 @@ public class PlaylistParser implements Request.Parser<List<Channel>> {
                 }
             }
         }
+        long previousNumber = 0;
+        for (Channel channel : result) {
+            boolean explicitNumber = channel.order >= 0 && channel.order <= 999
+                    && channel.order >= previousNumber;
+            channel.number = explicitNumber ? channel.order : previousNumber + 1;
+            previousNumber = channel.number;
+        }
         return result;
     }
 
@@ -99,7 +106,7 @@ public class PlaylistParser implements Request.Parser<List<Channel>> {
             }
             channel.title = title;
         }
-        String first = info.split("[\\s,]", 2)[0];
+        String first = info.trim().split("[\\s,]", 2)[0];
         channel.order = parseOrder(first);
         channel.id = attributes.get("tvg-name");
         if (Channel.isEmpty(channel.id)) channel.id = attributes.get("server-id");

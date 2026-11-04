@@ -17,6 +17,7 @@ public class Channel extends ParcelableObject<Channel> {
     public String url = "";
     public String thumbnail = "";
     public int order = NO_ORDER;
+    public long number = -1;
     public boolean playlist;
     public boolean playlistSource;
 
@@ -28,6 +29,7 @@ public class Channel extends ParcelableObject<Channel> {
         url = in.readUTF();
         thumbnail = in.readUTF();
         order = in.readInt();
+        number = in.readLong();
         playlist = in.readBoolean();
         playlistSource = in.readBoolean();
     }
@@ -46,6 +48,7 @@ public class Channel extends ParcelableObject<Channel> {
         writeUTF(url, out);
         writeUTF(thumbnail, out);
         out.writeInt(order);
+        out.writeLong(number);
         out.writeBoolean(playlist);
         out.writeBoolean(playlistSource);
     }
@@ -72,7 +75,7 @@ public class Channel extends ParcelableObject<Channel> {
     }
 
     public boolean equalsContent(Channel other) {
-        return equals(other) && order == other.order && Objects.equals(title, other.title)
+        return equals(other) && order == other.order && number == other.number && Objects.equals(title, other.title)
                 && playlistSource == other.playlistSource && Objects.equals(thumbnail, other.thumbnail);
     }
 

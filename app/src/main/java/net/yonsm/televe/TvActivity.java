@@ -26,6 +26,7 @@ import android.view.MenuItem;
 import android.view.MotionEvent;
 import android.view.View;
 import android.view.ViewGroup;
+import android.view.ViewTreeObserver;
 import android.text.InputType;
 import android.widget.EditText;
 import android.widget.FrameLayout;
@@ -78,6 +79,8 @@ public class TvActivity extends ComponentActivity {
     private TextView mTimeView;
     private TextView mChannelBanner;
     private ChannelInfoDialog mChannelInfoDialog;
+    private String mChannelNumber = "";
+    private int mNumberConfirmKey = KeyEvent.KEYCODE_UNKNOWN;
     private LayoutInflater mLayoutInflater;
     private PlaylistRepository mIptvSource;
     private final ArrayList<Channel> mProviderList = new ArrayList<>();
@@ -125,6 +128,10 @@ public class TvActivity extends ComponentActivity {
         mChannelMenu.setAdapter(mChannelAdapter);
         mChannelMenu.setHasFixedSize(true);
         mChannelMenu.setLayoutManager(new GridLayoutManager(this, 2));
+        mChannelMenu.setOnTouchListener((view, event) -> {
+            if (event.getActionMasked() == MotionEvent.ACTION_DOWN) cancelChannelFocus();
+            return false;
+        });
         mIptvSource = new PlaylistRepository(this,
                 PrefUtils.getConfigPref(this).getString(PrefUtils.CONFIG_PLAYLIST_URL, PlaylistRepository.DEFAULT_URL));
 
@@ -181,6 +188,7 @@ public class TvActivity extends ComponentActivity {
 
     @Override
     protected void onDestroy() {
+        cancelChannelFocus();
         if (mPlayerView != null) {
             mPlayerView.setKeepScreenOn(false);
             mPlayerView.removeCallbacks(mReplayAction);
@@ -198,6 +206,10 @@ public class TvActivity extends ComponentActivity {
         super.onPause();
 
         mResumed = false;
+        cancelChannelFocus();
+        mChannelMenu.stopScroll();
+        cancelChannelNumber();
+        mNumberConfirmKey = KeyEvent.KEYCODE_UNKNOWN;
         if (mChannelInfoDialog != null) {
             mChannelInfoDialog.dismiss();
             mChannelInfoDialog = null;
@@ -222,6 +234,10 @@ public class TvActivity extends ComponentActivity {
 
     private long mLastBackPressedTime;
     private void handleBackPressed() {
+        if (!mChannelNumber.isEmpty()) {
+            cancelChannelNumber();
+            return;
+        }
         long now = System.currentTimeMillis();
 
         if (mDrawerLayout.isDrawerOpened()) {
@@ -246,7 +262,104 @@ public class TvActivity extends ComponentActivity {
     private boolean mResumed;
 
     @Override
+    public boolean onKeyDown(int keyCode, KeyEvent event) {
+        return handleChannelNumberKey(event) || super.onKeyDown(keyCode, event);
+    }
+
+    private boolean handleChannelNumberKey(KeyEvent event) {
+        int keyCode = event.getKeyCode();
+        int digit = -1;
+        if (keyCode >= KeyEvent.KEYCODE_0 && keyCode <= KeyEvent.KEYCODE_9)
+            digit = keyCode - KeyEvent.KEYCODE_0;
+        else if (keyCode >= KeyEvent.KEYCODE_NUMPAD_0 && keyCode <= KeyEvent.KEYCODE_NUMPAD_9)
+            digit = keyCode - KeyEvent.KEYCODE_NUMPAD_0;
+        if (mResumed && digit >= 0) {
+            if (event.getAction() == KeyEvent.ACTION_DOWN && event.getRepeatCount() == 0)
+                appendChannelNumber(digit);
+            return true;
+        }
+        boolean confirm = keyCode == KeyEvent.KEYCODE_DPAD_CENTER || keyCode == KeyEvent.KEYCODE_ENTER
+                || keyCode == KeyEvent.KEYCODE_NUMPAD_ENTER;
+        if (confirm && (!mChannelNumber.isEmpty() || mNumberConfirmKey == keyCode)) {
+            if (event.getAction() == KeyEvent.ACTION_DOWN) {
+                mNumberConfirmKey = keyCode;
+                mChannelBanner.removeCallbacks(mCommitChannelNumberAction);
+            } else if (event.getAction() == KeyEvent.ACTION_UP) {
+                mNumberConfirmKey = KeyEvent.KEYCODE_UNKNOWN;
+                if (event.isCanceled()) cancelChannelNumber();
+                else commitChannelNumber();
+            }
+            return true;
+        }
+        if (keyCode == KeyEvent.KEYCODE_DEL && !mChannelNumber.isEmpty()) {
+            if (event.getAction() == KeyEvent.ACTION_DOWN) {
+                mChannelNumber = mChannelNumber.substring(0, mChannelNumber.length() - 1);
+                if (mChannelNumber.isEmpty()) {
+                    cancelChannelNumber();
+                    hideChannelBanner();
+                } else previewChannelNumber();
+            }
+            return true;
+        }
+        return false;
+    }
+
+    private void appendChannelNumber(int digit) {
+        if (mChannelList.size() == 0) {
+            showChannelBanner(getString(R.string.channel_list_empty));
+            return;
+        }
+        if (mDrawerLayout.isDrawerOpened()) mDrawerLayout.closeDrawer(true);
+        long maxNumber = 0;
+        for (int i = 0; i < mChannelList.size(); i++)
+            maxNumber = Math.max(maxNumber, mChannelList.get(i).number);
+        int maxDigits = String.valueOf(maxNumber).length();
+        if (mChannelNumber.equals("0")) mChannelNumber = "";
+        // Keep one excess digit so an invalid number cannot select a valid prefix.
+        if (mChannelNumber.length() <= maxDigits) mChannelNumber += digit;
+        mLastBackPressedTime = 0;
+        previewChannelNumber();
+    }
+
+    private int pendingChannelIndex() {
+        if (mChannelNumber.isEmpty()) return -1;
+        long number = Long.parseLong(mChannelNumber);
+        for (int i = 0; i < mChannelList.size(); i++) {
+            if (mChannelList.get(i).number == number) return i;
+        }
+        return -1;
+    }
+
+    private void previewChannelNumber() {
+        mChannelBanner.removeCallbacks(mCommitChannelNumberAction);
+        int index = pendingChannelIndex();
+        showChannelBanner(index >= 0
+                ? getString(R.string.channel_number_name, mChannelNumber, mChannelList.get(index).title)
+                : mChannelNumber);
+        mChannelBanner.postDelayed(mCommitChannelNumberAction, 1500);
+    }
+
+    private void cancelChannelNumber() {
+        boolean pending = !mChannelNumber.isEmpty();
+        mChannelNumber = "";
+        mChannelBanner.removeCallbacks(mCommitChannelNumberAction);
+        if (pending) hideChannelBanner();
+    }
+
+    private void commitChannelNumber() {
+        if (mChannelNumber.isEmpty()) return;
+        String number = mChannelNumber;
+        int index = pendingChannelIndex();
+        cancelChannelNumber();
+        if (index >= 0) playChannel(index);
+        else showChannelBanner(getString(R.string.channel_number_invalid, number));
+    }
+
+    private final Runnable mCommitChannelNumberAction = this::commitChannelNumber;
+
+    @Override
     public boolean onKeyUp(int keyCode, KeyEvent event) {
+        if (handleChannelNumberKey(event)) return true;
         if (keyCode == KeyEvent.KEYCODE_INFO) {
             showChannelInfo();
             return true;
@@ -281,22 +394,34 @@ public class TvActivity extends ComponentActivity {
     }
 
     private void focusToCurrentChannel() {
-        fixCurrentIndexIfNecessary();
-        mChannelMenu.postOnAnimation(new Runnable() {
-            @Override
-            public void run() {
-                int index = mChannelList.getCurrentItem();
-                RecyclerView.ViewHolder holder = mChannelMenu.findViewHolderForLayoutPosition(index);
-                if (holder != null) {
-                    holder.itemView.requestFocus();
-                } else if (index >= 0 && index < mChannelList.size()) {
-                    mChannelMenu.smoothScrollToPosition(index);
-                    mChannelMenu.postOnAnimation(this);
-                } else {
-                    mProviderView.requestFocus();
-                }
-            }
-        });
+        cancelChannelFocus();
+        mChannelMenu.stopScroll();
+        int index = fixCurrentIndexIfNecessary();
+        if (index < 0 || index >= mChannelList.size()) {
+            mProviderView.requestFocus();
+            return;
+        }
+        RecyclerView.ViewHolder holder = mChannelMenu.findViewHolderForAdapterPosition(index);
+        if (holder != null) {
+            holder.itemView.requestFocus();
+            return;
+        }
+        mChannelMenu.getViewTreeObserver().addOnGlobalLayoutListener(mFocusChannelAfterLayout);
+        ((GridLayoutManager) mChannelMenu.getLayoutManager()).scrollToPositionWithOffset(index, 0);
+    }
+
+    private void cancelChannelFocus() {
+        if (mChannelMenu != null && mChannelMenu.getViewTreeObserver().isAlive())
+            mChannelMenu.getViewTreeObserver().removeOnGlobalLayoutListener(mFocusChannelAfterLayout);
+    }
+
+    private final ViewTreeObserver.OnGlobalLayoutListener mFocusChannelAfterLayout = this::focusChannelAfterLayout;
+
+    private void focusChannelAfterLayout() {
+        cancelChannelFocus();
+        if (!mResumed || !mDrawerLayout.isDrawerOpened()) return;
+        RecyclerView.ViewHolder holder = mChannelMenu.findViewHolderForAdapterPosition(mChannelList.getCurrentItem());
+        if (holder != null) holder.itemView.requestFocus();
     }
 
     private void playChannel(Channel channel) {
@@ -318,14 +443,16 @@ public class TvActivity extends ComponentActivity {
         Channel channel = mChannelList.get(index);
         if (channel == null)
             return;
-        if (Channel.equals(channel, mChannel) && mLastState == PlayerView.State.READY)
+        if (Channel.equals(channel, mChannel) && mLastState == PlayerView.State.READY) {
+            showChannelBanner(getString(R.string.channel_number_name, String.valueOf(channel.number), channel.title));
             return;
+        }
 
         final int animate = index - mChannelList.getCurrentItem();
         mChannel = channel;
         mChannelList.setCurrentItem(index);
         playChannel(mChannel);
-        showChannelBanner(channel.title);
+        showChannelBanner(getString(R.string.channel_number_name, String.valueOf(channel.number), channel.title));
 
         saveStatusString(PrefUtils.STATE_CHANNEL_URL, mChannel.url);
 
@@ -338,6 +465,7 @@ public class TvActivity extends ComponentActivity {
     }
 
     private boolean playNextItem(boolean forward) {
+        cancelChannelNumber();
         int index = fixCurrentIndexIfNecessary();
         int count = mChannelList.size();
         int next;
@@ -425,6 +553,8 @@ public class TvActivity extends ComponentActivity {
     private void setChannelProvider(int index, boolean refresh) {
         if (index < 0 || index >= mProviderList.size())
             return;
+
+        cancelChannelNumber();
 
         final Channel previousFolder = mCurrentFolder;
         final Channel folder = mCurrentFolder = mProviderList.get(index);
@@ -560,6 +690,7 @@ public class TvActivity extends ComponentActivity {
     }
 
     private void showChannelInfo() {
+        cancelChannelNumber();
         if (mChannel != null && (mChannelInfoDialog == null || !mChannelInfoDialog.isShowing())) {
             mChannelInfoDialog = new ChannelInfoDialog(this, mChannel, mPlayerView);
             mChannelInfoDialog.show();
@@ -607,6 +738,7 @@ public class TvActivity extends ComponentActivity {
     private static final int MENU_GROUP_PROVIDER = 1;
 
     private void showProviderMenu() {
+        cancelChannelNumber();
         final PopupMenu.OnMenuItemClickListener clickListener = new PopupMenu.OnMenuItemClickListener() {
             @Override
             public boolean onMenuItemClick(MenuItem item) {
@@ -700,14 +832,17 @@ public class TvActivity extends ComponentActivity {
                     icon = is4K(title) ? m4KIcon : mHDIcon;
                     title = title.substring(0, title.length() - 2).trim();
                 }
-                titleView.setText(title);
+                titleView.setText(getString(R.string.channel_number_name,
+                        String.valueOf(channel.number), title));
                 titleView.setCompoundDrawablesWithIntrinsicBounds(null, null, icon, null);
             }
         }
 
         @Override
         public void onClick(View v) {
-            playChannel(getLayoutPosition());
+            int position = getBindingAdapterPosition();
+            if (position == RecyclerView.NO_POSITION) return;
+            playChannel(position);
             mDrawerLayout.closeDrawer(true);
         }
     }
@@ -770,7 +905,6 @@ public class TvActivity extends ComponentActivity {
                 RecyclerView.ViewHolder holder = mChannelMenu.findViewHolderForLayoutPosition(item);
                 if (holder instanceof ChannelHolder) {
                     ((ChannelHolder) holder).update(true);
-                    mChannelMenu.smoothScrollToPosition(item);
                 }
             }
         }
@@ -886,6 +1020,7 @@ public class TvActivity extends ComponentActivity {
     private final DrawerLayout.Listener mDrawerListener = new DrawerLayout.Listener() {
         @Override
         public void onDrawerOpened(DrawerLayout layout) {
+            cancelChannelNumber();
             ((ViewGroup) mToolbar.getView()).setDescendantFocusability(ViewGroup.FOCUS_BLOCK_DESCENDANTS);
             focusToCurrentChannel();
             mDrawerLayout.removeCallbacks(mDelayHideSystemUiAction);
@@ -894,6 +1029,8 @@ public class TvActivity extends ComponentActivity {
 
         @Override
         public void onDrawerClosed(DrawerLayout layout) {
+            cancelChannelFocus();
+            mChannelMenu.stopScroll();
             ((ViewGroup) mToolbar.getView()).setDescendantFocusability(ViewGroup.FOCUS_BEFORE_DESCENDANTS);
             mPlayerView.requestFocus();
             mDrawerLayout.postDelayed(mDelayHideSystemUiAction, 1000); // setSystemUiVisible(false);
@@ -912,6 +1049,7 @@ public class TvActivity extends ComponentActivity {
     private final View.OnKeyListener mKeyListener = new View.OnKeyListener() {
         @Override
         public boolean onKey(View v, int keyCode, KeyEvent event) {
+            if (handleChannelNumberKey(event)) return true;
             if (event.getAction() == KeyEvent.ACTION_DOWN) {
                 switch (keyCode) {
                     case KeyEvent.KEYCODE_DPAD_UP:

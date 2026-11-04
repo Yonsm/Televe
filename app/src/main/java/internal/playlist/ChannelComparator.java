@@ -13,7 +13,8 @@ public class ChannelComparator implements Comparator<Channel> {
 
     @Override
     public int compare(Channel first, Channel second) {
-        long result = Integer.compare(first.order, second.order);
+        long result = Long.compare(first.number >= 0 ? first.number : first.order,
+                second.number >= 0 ? second.number : second.order);
         if (result == 0) result = onCompare(first, second);
         if (result == 0) result = first.id.compareTo(second.id);
         if (result == 0) result = first.url.compareTo(second.url);
