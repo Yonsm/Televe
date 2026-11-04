@@ -75,6 +75,7 @@ public class TvActivity extends ComponentActivity {
     private PlayerView mPlayerView;
     private TextView mProviderView;
     private TextView mTimeView;
+    private TextView mChannelBanner;
     private LayoutInflater mLayoutInflater;
     private PlaylistRepository mIptvSource;
     private final ArrayList<Channel> mProviderList = new ArrayList<>();
@@ -126,6 +127,7 @@ public class TvActivity extends ComponentActivity {
 
 
         mLoadingView = mDrawerLayout.findViewById(R.id.loading);
+        mChannelBanner = mDrawerLayout.findViewById(R.id.channel_banner);
 
         mPlayerView = mDrawerLayout.findViewById(R.id.player);
         mPlayerView.addEventListener(mEventListener);
@@ -193,6 +195,7 @@ public class TvActivity extends ComponentActivity {
         super.onPause();
 
         mResumed = false;
+        hideChannelBanner();
         mPlayerView.removeCallbacks(mReplayAction);
         mPlayerView.stop();
         if (mTimeView != null)
@@ -309,6 +312,7 @@ public class TvActivity extends ComponentActivity {
         mChannel = channel;
         mChannelList.setCurrentItem(index);
         playChannel(mChannel);
+        showChannelBanner(channel.title);
 
         saveStatusString(PrefUtils.STATE_CHANNEL_URL, mChannel.url);
 
@@ -335,6 +339,20 @@ public class TvActivity extends ComponentActivity {
             playChannel(next);
         return true;
     }
+
+    private void showChannelBanner(CharSequence text) {
+        mChannelBanner.removeCallbacks(mHideChannelBannerAction);
+        mChannelBanner.setText(text);
+        mChannelBanner.setVisibility(View.VISIBLE);
+        mChannelBanner.postDelayed(mHideChannelBannerAction, 3000);
+    }
+
+    private void hideChannelBanner() {
+        mChannelBanner.removeCallbacks(mHideChannelBannerAction);
+        mChannelBanner.setVisibility(View.GONE);
+    }
+
+    private final Runnable mHideChannelBannerAction = () -> mChannelBanner.setVisibility(View.GONE);
 
     private String loadStatusString(String key, String defValue) {
         return PrefUtils.getStatePref(this).getString(key, defValue);
