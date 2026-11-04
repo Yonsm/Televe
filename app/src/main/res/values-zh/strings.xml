@@ -3,6 +3,7 @@
     <string name="about">关于</string>
     <string name="about_version">版本 %1$s</string>
     <string name="about_message">面向 Android 手机、平板和电视的 IPTV 直播应用。</string>
+    <string name="browser_unavailable">没有可用的浏览器打开此链接</string>
     <string name="aspect_ratio">长宽比</string>
     <string name="aspect_ratio_default">默认</string>
     <string name="only_hd">只列高清</string>

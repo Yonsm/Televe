@@ -496,7 +496,8 @@ public class TvActivity extends ComponentActivity {
     }
 
     private void showSourceEditor() {
-        final EditText input = new EditText(this);
+        final AlertDialog.Builder builder = new AlertDialog.Builder(this);
+        final EditText input = new EditText(builder.getContext());
         input.setSingleLine(true);
         input.setSelectAllOnFocus(true);
         input.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_URI);
@@ -504,12 +505,12 @@ public class TvActivity extends ComponentActivity {
         input.setText(mIptvSource.getRoot().url);
 
         int padding = (int) (mDensity * 24);
-        FrameLayout content = new FrameLayout(this);
+        FrameLayout content = new FrameLayout(builder.getContext());
         content.setPadding(padding, 0, padding, 0);
         content.addView(input, new FrameLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
 
-        AlertDialog dialog = new AlertDialog.Builder(this)
+        AlertDialog dialog = builder
                 .setTitle(R.string.source)
                 .setView(content)
                 .setNegativeButton(android.R.string.cancel, null)

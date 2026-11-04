@@ -3,6 +3,7 @@
     <string name="about">About</string>
     <string name="about_version">Version %1$s</string>
     <string name="about_message">An IPTV live player for Android phones, tablets and TVs.</string>
+    <string name="browser_unavailable">No browser available to open this link</string>
     <string name="aspect_ratio">Aspect ratio</string>
     <string name="aspect_ratio_default">Default</string>
     <string name="aspect_ratio_16_9" translatable="false">16:9</string>
