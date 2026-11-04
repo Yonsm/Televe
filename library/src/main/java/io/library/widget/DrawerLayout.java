@@ -153,6 +153,10 @@ public class DrawerLayout extends FrameLayout {
 		return mDrawerOpened;
 	}
 
+	public void setEdgeSwipeEnabled(boolean enabled) {
+		mEdgeSize = enabled ? getResources().getDisplayMetrics().density * EDGE_SIZE : 0;
+	}
+
 	public boolean onOptionsItemSelected(MenuItem item) {
 		if (item != null && item.getItemId() == android.R.id.home && mIndicatorEnabled) {
 			toggle();

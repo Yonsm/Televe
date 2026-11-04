@@ -46,6 +46,7 @@ import internal.playlist.ChannelList;
 import internal.playlist.ChannelListCallback;
 import internal.playlist.PlaylistRepository;
 import internal.dialog.AboutDialog;
+import internal.dialog.ChannelInfoDialog;
 import internal.menu.ToolMenuItem;
 import internal.utils.PrefUtils;
 import internal.utils.SnapshotStore;
@@ -76,6 +77,7 @@ public class TvActivity extends ComponentActivity {
     private TextView mProviderView;
     private TextView mTimeView;
     private TextView mChannelBanner;
+    private ChannelInfoDialog mChannelInfoDialog;
     private LayoutInflater mLayoutInflater;
     private PlaylistRepository mIptvSource;
     private final ArrayList<Channel> mProviderList = new ArrayList<>();
@@ -103,6 +105,7 @@ public class TvActivity extends ComponentActivity {
         mPlayIcon = ToolMenuItem.getIcon(this, R.drawable.ic_action_play);
 
         mDrawerLayout = findViewById(R.id.drawer_layout);
+        mDrawerLayout.setEdgeSwipeEnabled(false);
         mDrawerLayout.setScrimColor(Color.TRANSPARENT);
         int vis = View.SYSTEM_UI_LAYOUT_FLAGS | View.SYSTEM_UI_FLAG_LAYOUT_STABLE;
         vis |= View.SYSTEM_UI_FLAG_IMMERSIVE;
@@ -195,6 +198,10 @@ public class TvActivity extends ComponentActivity {
         super.onPause();
 
         mResumed = false;
+        if (mChannelInfoDialog != null) {
+            mChannelInfoDialog.dismiss();
+            mChannelInfoDialog = null;
+        }
         hideChannelBanner();
         mPlayerView.removeCallbacks(mReplayAction);
         mPlayerView.stop();
@@ -240,6 +247,10 @@ public class TvActivity extends ComponentActivity {
 
     @Override
     public boolean onKeyUp(int keyCode, KeyEvent event) {
+        if (keyCode == KeyEvent.KEYCODE_INFO) {
+            showChannelInfo();
+            return true;
+        }
         if (keyCode == KeyEvent.KEYCODE_MENU) {
             showProviderMenu();
             return true;
@@ -289,6 +300,8 @@ public class TvActivity extends ComponentActivity {
     }
 
     private void playChannel(Channel channel) {
+        if (mChannelInfoDialog != null && !mChannelInfoDialog.isForChannel(channel))
+            mChannelInfoDialog.dismiss();
         mToolbar.setTitle(channel.title);
         if (!mResumed) return;
         Uri uri = Uri.parse(channel.url);
@@ -546,6 +559,13 @@ public class TvActivity extends ComponentActivity {
         dialog.show();
     }
 
+    private void showChannelInfo() {
+        if (mChannel != null && (mChannelInfoDialog == null || !mChannelInfoDialog.isShowing())) {
+            mChannelInfoDialog = new ChannelInfoDialog(this, mChannel, mPlayerView);
+            mChannelInfoDialog.show();
+        }
+    }
+
     private static boolean isSourceUrl(String value) {
         Uri uri = Uri.parse(value);
         String scheme = uri.getScheme();
@@ -613,6 +633,9 @@ public class TvActivity extends ComponentActivity {
                 } else if (itemId == R.id.about) {
                     new AboutDialog(TvActivity.this).show();
                     return true;
+                } else if (itemId == R.id.channel_info) {
+                    showChannelInfo();
+                    return true;
                 }
                 if (mAspectRatio != mPlayerView.getAspectRatio()) {
                     mPlayerView.setAspectRatio(mAspectRatio);
@@ -627,10 +650,12 @@ public class TvActivity extends ComponentActivity {
         if (mAspectRatio == 16 / 9f) ratioId = R.id.aspect_ratio_16_9;
         else if (mAspectRatio == 4 / 3f) ratioId = R.id.aspect_ratio_4_3;
 
+        if (!mDrawerLayout.isDrawerOpened()) mDrawerLayout.openDrawer(false);
         PopupMenu popup = new PopupMenu(this, mProviderView);
         popup.setOnMenuItemClickListener(clickListener);
         Menu menu = popup.getMenu();
         getMenuInflater().inflate(R.menu.tv_actions, menu);
+        menu.findItem(R.id.channel_info).setEnabled(mChannel != null);
         menu.findItem(R.id.action_only_hd).setCheckable(true).setChecked(mOnlyHD);
         menu.findItem(ratioId).setCheckable(true).setChecked(true);
         int id = 0;
@@ -812,6 +837,7 @@ public class TvActivity extends ComponentActivity {
         }
     };
 
+    private float mTouchDownX;
     private float mTouchDownY;
     private boolean mLongPressed;
 
@@ -820,20 +846,25 @@ public class TvActivity extends ComponentActivity {
         public boolean onTouch(View v, MotionEvent event) {
             switch (event.getAction()) {
                 case MotionEvent.ACTION_DOWN:
+                    mTouchDownX = event.getX();
                     mTouchDownY = event.getY();
                     mLongPressed = false;
                     break;
                 case MotionEvent.ACTION_MOVE:
-                    if (Math.abs(event.getY() - mTouchDownY) > 40 * mDensity)
+                    if (Math.max(Math.abs(event.getX() - mTouchDownX),
+                            Math.abs(event.getY() - mTouchDownY)) > 40 * mDensity)
                         v.cancelLongPress();
                     break;
                 case MotionEvent.ACTION_UP:
+                    float dx = event.getX() - mTouchDownX;
                     float dy = event.getY() - mTouchDownY;
-                    if (!mLongPressed && Math.abs(dy) > 40 * mDensity) {
+                    if (!mLongPressed && Math.max(Math.abs(dx), Math.abs(dy)) > 40 * mDensity) {
                         event.setAction(MotionEvent.ACTION_CANCEL);
                         v.onTouchEvent(event);
                         event.setAction(MotionEvent.ACTION_UP);
-                        playNextItem(dy > 0);
+                        if (Math.abs(dy) >= Math.abs(dx)) playNextItem(dy > 0);
+                        else if (dx < 0) mDrawerLayout.openDrawer(true);
+                        else showChannelInfo();
                         return true;
                     }
                     break;
@@ -887,8 +918,11 @@ public class TvActivity extends ComponentActivity {
                         return playNextItem(false);
                     case KeyEvent.KEYCODE_DPAD_DOWN:
                         return playNextItem(true);
+                    case KeyEvent.KEYCODE_DPAD_LEFT:
+                        if (event.getRepeatCount() == 0) mDrawerLayout.openDrawer(true);
+                        return true;
                     case KeyEvent.KEYCODE_DPAD_RIGHT:
-                        if (event.getRepeatCount() == 0) saveSnapshot();
+                        if (event.getRepeatCount() == 0) showChannelInfo();
                         return true;
                 }
             }

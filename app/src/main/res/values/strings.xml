@@ -1,4 +1,24 @@
 <resources>
+    <string name="channel_info">Channel information</string>
+    <string name="channel_name">Channel</string>
+    <string name="channel_url">Stream URL</string>
+    <string name="channel_buffer">Buffered</string>
+    <string name="channel_live">Live</string>
+    <string name="channel_error">Playback error</string>
+    <string name="channel_video">Video</string>
+    <string name="channel_audio">Audio</string>
+    <string name="channel_resolution">Resolution</string>
+    <string name="channel_frame_rate">Frame rate</string>
+    <string name="channel_color">Color information</string>
+    <string name="channel_mime">Encoding / MIME</string>
+    <string name="channel_codecs">Codec identifier</string>
+    <string name="channel_bitrate">Nominal average bitrate</string>
+    <string name="channel_peak_bitrate">Nominal peak bitrate</string>
+    <string name="channel_decoder">Decoder</string>
+    <string name="channel_sample_rate">Sample rate</string>
+    <string name="channel_audio_channels">Channels</string>
+    <string name="channel_language">Language</string>
+    <string name="channel_unknown">Unknown / unavailable</string>
     <string name="app_name">Televe</string>
     <string name="about">About</string>
     <string name="about_version">Version %1$s</string>

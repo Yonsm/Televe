@@ -30,6 +30,7 @@ import androidx.media3.datasource.DefaultHttpDataSource;
 import androidx.media3.exoplayer.DefaultLoadControl;
 import androidx.media3.exoplayer.DefaultRenderersFactory;
 import androidx.media3.exoplayer.ExoPlayer;
+import androidx.media3.exoplayer.analytics.AnalyticsListener;
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory;
 import androidx.media3.exoplayer.source.MediaSource;
 import androidx.media3.exoplayer.trackselection.DefaultTrackSelector;
@@ -79,6 +80,8 @@ public class PlayerView extends TextureView implements TextureView.SurfaceTextur
     private ExoPlayer mExoPlayer;
     private Surface mSurface;
     private DefaultTrackSelector mTrackSelector;
+    private String mVideoDecoder;
+    private String mAudioDecoder;
     private final CopyOnWriteArrayList<EventListener> mEventListeners = new CopyOnWriteArrayList<>();
 
     public PlayerView(Context context) {
@@ -105,6 +108,32 @@ public class PlayerView extends TextureView implements TextureView.SurfaceTextur
 
     public float getAspectRatio() {
         return mAspectRatio;
+    }
+
+    public static class PlaybackInfo {
+        public Format video;
+        public Format audio;
+        public String videoDecoder;
+        public String audioDecoder;
+        public VideoSize videoSize;
+        public long bufferedDurationMs;
+        public boolean live;
+        public PlaybackException error;
+    }
+
+    public PlaybackInfo getPlaybackInfo() {
+        PlaybackInfo info = new PlaybackInfo();
+        if (mExoPlayer != null) {
+            info.video = mExoPlayer.getVideoFormat();
+            info.audio = mExoPlayer.getAudioFormat();
+            info.videoDecoder = info.video != null ? mVideoDecoder : null;
+            info.audioDecoder = info.audio != null ? mAudioDecoder : null;
+            info.videoSize = mExoPlayer.getVideoSize();
+            info.bufferedDurationMs = mExoPlayer.getTotalBufferedDuration();
+            info.live = mExoPlayer.isCurrentMediaItemLive();
+            info.error = mExoPlayer.getPlayerError();
+        }
+        return info;
     }
 
     public void setAspectRatio(float aspectRatio) {
@@ -260,6 +289,19 @@ public class PlayerView extends TextureView implements TextureView.SurfaceTextur
         mExoPlayer = createExoPlayer(getContext(), mTrackSelector);
         mExoPlayer.addListener(mExoEventListener);
         mExoPlayer.addListener(mExoVideoListener);
+        mExoPlayer.addAnalyticsListener(new AnalyticsListener() {
+            @Override
+            public void onVideoDecoderInitialized(EventTime eventTime, String name,
+                                                   long initializedTimestampMs, long initializationDurationMs) {
+                mVideoDecoder = name;
+            }
+
+            @Override
+            public void onAudioDecoderInitialized(EventTime eventTime, String name,
+                                                   long initializedTimestampMs, long initializationDurationMs) {
+                mAudioDecoder = name;
+            }
+        });
         mExoPlayer.setVideoSurface(mSurface);
         mExoPlayer.setPlayWhenReady(mPlayWhenReady);
     }

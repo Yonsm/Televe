@@ -28,6 +28,10 @@
     </item>
 
     <item
+        android:id="@+id/channel_info"
+        android:title="@string/channel_info" />
+
+    <item
         android:id="@+id/action_only_hd"
         android:title="@string/only_hd"
         android:checkable="true"/>

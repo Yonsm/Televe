@@ -1,4 +1,24 @@
 <resources>
+    <string name="channel_info">频道信息</string>
+    <string name="channel_name">频道名称</string>
+    <string name="channel_url">源地址</string>
+    <string name="channel_buffer">已缓冲</string>
+    <string name="channel_live">直播</string>
+    <string name="channel_error">播放错误</string>
+    <string name="channel_video">视频</string>
+    <string name="channel_audio">音频</string>
+    <string name="channel_resolution">分辨率</string>
+    <string name="channel_frame_rate">帧率</string>
+    <string name="channel_color">色彩信息</string>
+    <string name="channel_mime">编码 / MIME</string>
+    <string name="channel_codecs">编码标识</string>
+    <string name="channel_bitrate">标称平均码率</string>
+    <string name="channel_peak_bitrate">标称峰值码率</string>
+    <string name="channel_decoder">解码器</string>
+    <string name="channel_sample_rate">采样率</string>
+    <string name="channel_audio_channels">声道数</string>
+    <string name="channel_language">语言</string>
+    <string name="channel_unknown">未知 / 暂不可用</string>
     <string name="app_name">电视直播</string>
     <string name="about">关于</string>
     <string name="about_version">版本 %1$s</string>

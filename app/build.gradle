@@ -112,6 +112,7 @@ dependencies {
     implementation 'androidx.vectordrawable:vectordrawable:1.1.0'
 
     // 媒体播放
+    implementation 'androidx.media3:media3-common:' + project.ext.media3Version
     implementation 'androidx.media3:media3-exoplayer-dash:' + project.ext.media3Version
     implementation 'androidx.media3:media3-exoplayer-hls:' + project.ext.media3Version
 
