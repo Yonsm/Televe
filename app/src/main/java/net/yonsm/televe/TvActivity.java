@@ -63,6 +63,8 @@ public class TvActivity extends ComponentActivity {
     private static final String TAG = "TvActivity";
 
     private static final int REPLAY_DELAY = 1000;
+    private static final int PLAYBACK_FAILURE_THRESHOLD = 3;
+    private static final int STABLE_PLAYBACK_MS = 30000;
 
     private float mDensity;
     private float mAspectRatio;
@@ -83,6 +85,8 @@ public class TvActivity extends ComponentActivity {
     private int mPlaylistStatusText = R.string.channel_list_loading;
     private boolean mPlaylistCanRetry;
     private int mProviderRequest;
+    private int mPlaybackFailures;
+    private boolean mPlaybackFailureShown;
     private ChannelInfoDialog mChannelInfoDialog;
     private String mChannelNumber = "";
     private int mNumberConfirmKey = KeyEvent.KEYCODE_UNKNOWN;
@@ -196,6 +200,7 @@ public class TvActivity extends ComponentActivity {
     protected void onDestroy() {
         cancelChannelFocus();
         if (mPlayerView != null) {
+            mPlayerView.removeCallbacks(mResetPlaybackFailuresAction);
             mPlayerView.setKeepScreenOn(false);
             mPlayerView.removeCallbacks(mReplayAction);
             mPlayerView.removeEventListener(mEventListener);
@@ -222,6 +227,7 @@ public class TvActivity extends ComponentActivity {
         }
         hideChannelBanner();
         mPlayerView.removeCallbacks(mReplayAction);
+        mPlayerView.removeCallbacks(mResetPlaybackFailuresAction);
         mPlayerView.stop();
         if (mTimeView != null)
             mTimeView.removeCallbacks(mUpdateTimeAction);
@@ -232,6 +238,7 @@ public class TvActivity extends ComponentActivity {
         super.onResume();
 
         mResumed = true;
+        resetPlaybackFailures();
         scheduleTimeUpdate();
 
         if (mChannel != null)
@@ -454,20 +461,13 @@ public class TvActivity extends ComponentActivity {
             return;
         }
 
-        final int animate = index - mChannelList.getCurrentItem();
+        resetPlaybackFailures();
         mChannel = channel;
         mChannelList.setCurrentItem(index);
         playChannel(mChannel);
         showChannelBanner(getString(R.string.channel_number_name, String.valueOf(channel.number), channel.title));
 
         saveStatusString(PrefUtils.STATE_CHANNEL_URL, mChannel.url);
-
-        if (animate != 0) {
-            // 切台淡入，不抓帧、不平移双 View，省内存与 CPU
-            mPlayerView.setAlpha(0f);
-            mLoadingView.setVisibility(View.VISIBLE);
-            mAnimateWhenFirstFrame = animate;
-        }
     }
 
     private boolean playNextItem(boolean forward) {
@@ -509,19 +509,6 @@ public class TvActivity extends ComponentActivity {
         PrefUtils.getStatePref(this).edit().putString(key, value).apply();
     }
 
-    private Bitmap getSnapshotBitmap() {
-        if (mLastState != PlayerView.State.READY)
-            return null;
-
-        Bitmap bitmap = null;
-        try {
-            bitmap = mPlayerView.getBitmap();
-        } catch (Throwable e) {
-            showToast("截图失败！\n" + e.getMessage());
-        }
-        return bitmap;
-    }
-
     private static final int REQUEST_SNAPSHOT_PERMISSION = 1;
 
     private void saveSnapshot() {
@@ -530,8 +517,17 @@ public class TvActivity extends ComponentActivity {
             requestPermissions(new String[]{Manifest.permission.WRITE_EXTERNAL_STORAGE}, REQUEST_SNAPSHOT_PERMISSION);
             return;
         }
-        final Bitmap snapshot = getSnapshotBitmap();
-        if (snapshot == null) return;
+        if (mLastState != PlayerView.State.READY) return;
+        mPlayerView.captureFrame((snapshot, error) -> {
+            if (error != null) {
+                showToast(getString(R.string.snapshot_failed, error.getMessage()));
+                return;
+            }
+            saveSnapshot(snapshot);
+        });
+    }
+
+    private void saveSnapshot(Bitmap snapshot) {
         final String name = new SimpleDateFormat("yyyy-MM-dd HH-mm-ss", java.util.Locale.US).format(new Date()) + ".jpg";
         AsyncTask.execute(() -> {
             try {
@@ -771,6 +767,7 @@ public class TvActivity extends ComponentActivity {
     private void updateSource(String url) {
         boolean changed = !Channel.equals(url, mIptvSource.getRoot().url);
         if (changed) {
+            resetPlaybackFailures();
             mChannel = null;
             mPlayerView.removeCallbacks(mReplayAction);
             mPlayerView.stop();
@@ -984,8 +981,14 @@ public class TvActivity extends ComponentActivity {
         }
     };
 
-    private int mAnimateWhenFirstFrame;
     private long mPlaybackStartTime;
+    private void resetPlaybackFailures() {
+        mPlaybackFailures = 0;
+        mPlaybackFailureShown = false;
+        mPlayerView.removeCallbacks(mResetPlaybackFailuresAction);
+    }
+
+    private final Runnable mResetPlaybackFailuresAction = this::resetPlaybackFailures;
     private PlayerView.State mLastState = PlayerView.State.NONE;
     private final PlayerView.EventListener mEventListener = new PlayerView.EventListener() {
         @Override
@@ -993,6 +996,9 @@ public class TvActivity extends ComponentActivity {
             if (mLastState == state)
                 return;
             mLastState = state;
+            mPlayerView.removeCallbacks(mResetPlaybackFailuresAction);
+            if (state == PlayerView.State.READY)
+                mPlayerView.postDelayed(mResetPlaybackFailuresAction, STABLE_PLAYBACK_MS);
 
             int visibility = state == PlayerView.State.BUFFERING ? View.VISIBLE : View.GONE;
             mLoadingView.setVisibility(visibility);
@@ -1010,27 +1016,24 @@ public class TvActivity extends ComponentActivity {
 
         @Override
         public void onFirstFrameRendered() {
-            if (mAnimateWhenFirstFrame != 0) {
-                mAnimateWhenFirstFrame = 0;
-                // 新画面淡入
-                mPlayerView.animate().alpha(1f).start();
-            } else if (mPlayerView.getAlpha() != 1f) {
-                // 兜底：重播/失败恢复后确保画面可见
-                mPlayerView.setAlpha(1f);
-            }
+            mPlayerView.removeCallbacks(mResetPlaybackFailuresAction);
+            mPlayerView.postDelayed(mResetPlaybackFailuresAction, STABLE_PLAYBACK_MS);
         }
 
         @Override
         public void onError(int param1, int param2, Exception cause) {
-            if (mResumed && mChannel != null) {
-                mPlayerView.removeCallbacks(mReplayAction);
-                mPlayerView.postDelayed(mReplayAction, REPLAY_DELAY);
-            }
-            // 失败时确保画面可见，避免停在淡入的 alpha=0
-            mPlayerView.setAlpha(1f);
+            mPlayerView.removeCallbacks(mResetPlaybackFailuresAction);
             String url = mChannel != null ? mChannel.url : null;
-            showToast("Play failed: " + url);
             Log.w(TAG, "onError: " + url, cause);
+            if (mResumed && mChannel != null) {
+                mPlaybackFailures = Math.min(mPlaybackFailures + 1, PLAYBACK_FAILURE_THRESHOLD);
+                if (mPlaybackFailures == PLAYBACK_FAILURE_THRESHOLD && !mPlaybackFailureShown) {
+                    mPlaybackFailureShown = true;
+                    showToast(getString(R.string.channel_playback_failed));
+                }
+                mPlayerView.removeCallbacks(mReplayAction);
+                mPlayerView.postDelayed(mReplayAction, REPLAY_DELAY * mPlaybackFailures);
+            }
         }
     };
 

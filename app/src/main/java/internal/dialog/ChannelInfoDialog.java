@@ -103,6 +103,14 @@ public class ChannelInfoDialog extends AlertDialog {
         row(text, R.string.channel_resolution, width > 0 && height > 0 ? width + " x " + height : null);
         row(text, R.string.channel_frame_rate, video != null && video.frameRate > 0
                 ? String.format(Locale.getDefault(), "%.3f fps", video.frameRate) : null);
+        row(text, R.string.channel_decode_mode, info.videoHardwareAccelerated == null ? null
+                : getContext().getString(info.videoHardwareAccelerated
+                ? R.string.channel_decode_hardware : R.string.channel_decode_software));
+        row(text, R.string.channel_decode_support, info.videoFormatSupported == null ? null
+                : getContext().getString(info.videoFormatSupported
+                ? R.string.channel_decode_supported : R.string.channel_decode_exceeded));
+        row(text, R.string.channel_rendered_frames, info.renderedFrames);
+        row(text, R.string.channel_dropped_frames, info.droppedFrames);
         format(text, video, info.videoDecoder);
         if (video != null && video.colorInfo != null) row(text, R.string.channel_color, video.colorInfo.toString());
         text.append('\n').append(getContext().getString(R.string.channel_audio)).append('\n');

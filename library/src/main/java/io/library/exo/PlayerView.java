@@ -1,12 +1,16 @@
 package io.library.exo;
 
 import android.content.Context;
-import android.graphics.SurfaceTexture;
+import android.graphics.Bitmap;
 import android.net.Uri;
+import android.os.Build;
+import android.os.Handler;
+import android.os.Looper;
 import android.util.AttributeSet;
-import android.util.Log;
-import android.view.Surface;
+import android.view.PixelCopy;
+import android.view.SurfaceView;
 import android.view.TextureView;
+import android.widget.FrameLayout;
 
 import androidx.media3.common.C;
 import androidx.media3.common.FileTypes;
@@ -30,7 +34,10 @@ import androidx.media3.datasource.DefaultHttpDataSource;
 import androidx.media3.exoplayer.DefaultLoadControl;
 import androidx.media3.exoplayer.DefaultRenderersFactory;
 import androidx.media3.exoplayer.ExoPlayer;
+import androidx.media3.exoplayer.DecoderCounters;
 import androidx.media3.exoplayer.analytics.AnalyticsListener;
+import androidx.media3.exoplayer.mediacodec.MediaCodecInfo;
+import androidx.media3.exoplayer.mediacodec.MediaCodecUtil;
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory;
 import androidx.media3.exoplayer.source.MediaSource;
 import androidx.media3.exoplayer.trackselection.DefaultTrackSelector;
@@ -42,8 +49,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CopyOnWriteArrayList;
 
-public class PlayerView extends TextureView implements TextureView.SurfaceTextureListener {
-    private static final String TAG = "PlayerView";
+public class PlayerView extends FrameLayout {
+    private final SurfaceView mSurfaceView;
+    private final TextureView mTextureView;
 
     public enum State {
         NONE, IDLE, BUFFERING, READY, ENDED
@@ -78,10 +86,12 @@ public class PlayerView extends TextureView implements TextureView.SurfaceTextur
     private int mVideoHeight;
     private float mAspectRatio = 0;
     private ExoPlayer mExoPlayer;
-    private Surface mSurface;
     private DefaultTrackSelector mTrackSelector;
+    private MediaCodecInfo mVideoCodec;
     private String mVideoDecoder;
     private String mAudioDecoder;
+    private Uri mCurrentUri;
+    private PlaybackException mLastPlaybackError;
     private final CopyOnWriteArrayList<EventListener> mEventListeners = new CopyOnWriteArrayList<>();
 
     public PlayerView(Context context) {
@@ -94,7 +104,12 @@ public class PlayerView extends TextureView implements TextureView.SurfaceTextur
 
     public PlayerView(Context context, AttributeSet attrs, int defStyleAttr) {
         super(context, attrs, defStyleAttr);
-        setSurfaceTextureListener(this);
+        // PixelCopy is unavailable on Android 6; retain texture snapshots there.
+        mTextureView = Build.VERSION.SDK_INT < Build.VERSION_CODES.N ? new TextureView(context) : null;
+        mSurfaceView = mTextureView == null ? new SurfaceView(context) : null;
+        if (mSurfaceView != null) mSurfaceView.setZOrderMediaOverlay(true);
+        addView(mSurfaceView != null ? mSurfaceView : mTextureView,
+                new LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT));
         createPlayer();
     }
 
@@ -115,6 +130,10 @@ public class PlayerView extends TextureView implements TextureView.SurfaceTextur
         public Format audio;
         public String videoDecoder;
         public String audioDecoder;
+        public Boolean videoHardwareAccelerated;
+        public Boolean videoFormatSupported;
+        public int renderedFrames;
+        public int droppedFrames;
         public VideoSize videoSize;
         public long bufferedDurationMs;
         public boolean live;
@@ -128,10 +147,36 @@ public class PlayerView extends TextureView implements TextureView.SurfaceTextur
             info.audio = mExoPlayer.getAudioFormat();
             info.videoDecoder = info.video != null ? mVideoDecoder : null;
             info.audioDecoder = info.audio != null ? mAudioDecoder : null;
+            if (info.videoDecoder != null && mVideoCodec == null && info.video.sampleMimeType != null) {
+                try {
+                    for (MediaCodecInfo codec : MediaCodecUtil.getDecoderInfos(info.video.sampleMimeType, false, false)) {
+                        if (codec.name.equals(info.videoDecoder)) {
+                            mVideoCodec = codec;
+                            break;
+                        }
+                    }
+                } catch (MediaCodecUtil.DecoderQueryException ignored) {
+                    // Codec details remain unknown if the platform query fails.
+                }
+            }
+            if (info.videoDecoder != null && mVideoCodec != null) {
+                info.videoHardwareAccelerated = mVideoCodec.hardwareAccelerated;
+                try {
+                    info.videoFormatSupported = mVideoCodec.isFormatSupported(info.video);
+                } catch (MediaCodecUtil.DecoderQueryException ignored) {
+                    // Leave capability unknown when the platform query fails.
+                }
+            }
+            DecoderCounters counters = mExoPlayer.getVideoDecoderCounters();
+            if (counters != null) {
+                counters.ensureUpdated();
+                info.renderedFrames = counters.renderedOutputBufferCount;
+                info.droppedFrames = counters.droppedBufferCount;
+            }
             info.videoSize = mExoPlayer.getVideoSize();
             info.bufferedDurationMs = mExoPlayer.getTotalBufferedDuration();
             info.live = mExoPlayer.isCurrentMediaItemLive();
-            info.error = mExoPlayer.getPlayerError();
+            info.error = mExoPlayer.getPlayerError() != null ? mExoPlayer.getPlayerError() : mLastPlaybackError;
         }
         return info;
     }
@@ -149,6 +194,8 @@ public class PlayerView extends TextureView implements TextureView.SurfaceTextur
 
     public void setUri(Context context, Uri uri, Map<String, String> headers, int type, Uri subtitleUri, String subtitleType) {
         if (mExoPlayer != null) {
+            if (!uri.equals(mCurrentUri)) mLastPlaybackError = null;
+            mCurrentUri = uri;
             mVideoWidth = 0;
             mVideoHeight = 0;
             requestLayout();
@@ -281,10 +328,6 @@ public class PlayerView extends TextureView implements TextureView.SurfaceTextur
     }
 
     private void createPlayer() {
-        if (mSurface == null) {
-            SurfaceTexture surface = getSurfaceTexture();
-            mSurface = surface != null ? new Surface(surface) : null;
-        }
         mTrackSelector = new DefaultTrackSelector(getContext());
         mExoPlayer = createExoPlayer(getContext(), mTrackSelector);
         mExoPlayer.addListener(mExoEventListener);
@@ -294,6 +337,13 @@ public class PlayerView extends TextureView implements TextureView.SurfaceTextur
             public void onVideoDecoderInitialized(EventTime eventTime, String name,
                                                    long initializedTimestampMs, long initializationDurationMs) {
                 mVideoDecoder = name;
+                mVideoCodec = null;
+            }
+
+            @Override
+            public void onVideoDecoderReleased(EventTime eventTime, String name) {
+                mVideoDecoder = null;
+                mVideoCodec = null;
             }
 
             @Override
@@ -301,8 +351,14 @@ public class PlayerView extends TextureView implements TextureView.SurfaceTextur
                                                    long initializedTimestampMs, long initializationDurationMs) {
                 mAudioDecoder = name;
             }
+
+            @Override
+            public void onAudioDecoderReleased(EventTime eventTime, String name) {
+                mAudioDecoder = null;
+            }
         });
-        mExoPlayer.setVideoSurface(mSurface);
+        if (mSurfaceView != null) mExoPlayer.setVideoSurfaceView(mSurfaceView);
+        else mExoPlayer.setVideoTextureView(mTextureView);
         mExoPlayer.setPlayWhenReady(mPlayWhenReady);
     }
 
@@ -313,27 +369,17 @@ public class PlayerView extends TextureView implements TextureView.SurfaceTextur
 
     public void release() {
         if (mExoPlayer != null) {
-            mExoPlayer.clearVideoSurface();
+            if (mSurfaceView != null) mExoPlayer.clearVideoSurfaceView(mSurfaceView);
+            else mExoPlayer.clearVideoTextureView(mTextureView);
             mExoPlayer.removeListener(mExoEventListener);
             mExoPlayer.removeListener(mExoVideoListener);
             mExoPlayer.release();
             mExoPlayer = null;
             mTrackSelector = null;
         }
-        releaseSurface();
-    }
-
-    private void setSurface(SurfaceTexture surface) {
-        releaseSurface();
-        if (mExoPlayer != null)
-            mExoPlayer.setVideoSurface(mSurface = new Surface(surface));
-    }
-
-    private void releaseSurface() {
-        if (mSurface != null) {
-            mSurface.release();
-            mSurface = null;
-        }
+        mVideoDecoder = null;
+        mVideoCodec = null;
+        mAudioDecoder = null;
     }
 
     @Override
@@ -385,31 +431,39 @@ public class PlayerView extends TextureView implements TextureView.SurfaceTextur
                 }
             }
         }
-        setMeasuredDimension(width, height);
+        super.onMeasure(MeasureSpec.makeMeasureSpec(width, MeasureSpec.EXACTLY),
+                MeasureSpec.makeMeasureSpec(height, MeasureSpec.EXACTLY));
     }
 
-    @Override
-    public void onSurfaceTextureAvailable(SurfaceTexture surface, int width, int height) {
-        setSurface(surface);
-        Log.d(TAG, "onSurfaceTextureAvailable " + surface + ": " + width + "x" + height);
+    public interface FrameCallback {
+        void onFrame(Bitmap bitmap, Exception error);
     }
 
-    @Override
-    public void onSurfaceTextureSizeChanged(SurfaceTexture surface, int width, int height) {
-        Log.d(TAG, "onSurfaceTextureSizeChanged " + surface + ": " + width + "x" + height);
-    }
-
-    @Override
-    public boolean onSurfaceTextureDestroyed(SurfaceTexture surface) {
-        if (mExoPlayer != null)
-            mExoPlayer.clearVideoSurface();
-        releaseSurface();
-        Log.d(TAG, "onSurfaceTextureDestroyed " + surface);
-        return true;
-    }
-
-    @Override
-    public void onSurfaceTextureUpdated(SurfaceTexture surface) {
+    public void captureFrame(FrameCallback callback) {
+        Bitmap bitmap = null;
+        try {
+            if (mTextureView != null) {
+                bitmap = mTextureView.getBitmap();
+                callback.onFrame(bitmap, bitmap != null ? null : new IllegalStateException("No video frame"));
+                return;
+            }
+            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.N) {
+                throw new IllegalStateException("Surface snapshots require Android 7.0");
+            }
+            bitmap = Bitmap.createBitmap(getWidth(), getHeight(), Bitmap.Config.ARGB_8888);
+            Bitmap frame = bitmap;
+            PixelCopy.request(mSurfaceView, frame, result -> {
+                if (result == PixelCopy.SUCCESS) {
+                    callback.onFrame(frame, null);
+                } else {
+                    frame.recycle();
+                    callback.onFrame(null, new IllegalStateException("PixelCopy: " + result));
+                }
+            }, new Handler(Looper.getMainLooper()));
+        } catch (Exception error) {
+            if (bitmap != null) bitmap.recycle();
+            callback.onFrame(null, error);
+        }
     }
 
     private void notifyEvent(State state) {
@@ -447,6 +501,8 @@ public class PlayerView extends TextureView implements TextureView.SurfaceTextur
 
         @Override
         public void onPlayerError(PlaybackException error) {
+            if (mExoPlayer == null || mExoPlayer.getPlayerError() != error) return;
+            mLastPlaybackError = error;
             notifyError(error.errorCode, 0, error);
         }
 
@@ -478,14 +534,14 @@ public class PlayerView extends TextureView implements TextureView.SurfaceTextur
         }
     };
 
-    private static final int DEFAULT_MIN_BUFFER_MS = 2000;
-    private static final int DEFAULT_MAX_BUFFER_MS = 5000;
+    private static final int DEFAULT_MIN_BUFFER_MS = 10000;
+    private static final int DEFAULT_MAX_BUFFER_MS = 20000;
     private static final int TIMEOUT_CONNECT = 15000;
     private static final int TIMEOUT_READ = 30000;
 
     public static ExoPlayer createExoPlayer(Context context, TrackSelector trackSelector) {
         DefaultLoadControl loadControl = new DefaultLoadControl.Builder()
-                .setBufferDurationsMs(DEFAULT_MIN_BUFFER_MS, DEFAULT_MAX_BUFFER_MS, DEFAULT_MIN_BUFFER_MS / 2, DEFAULT_MIN_BUFFER_MS)
+                .setBufferDurationsMs(DEFAULT_MIN_BUFFER_MS, DEFAULT_MAX_BUFFER_MS, 1000, 3000)
                 .build();
         DefaultRenderersFactory rendererFactory = new DefaultRenderersFactory(context)
                 .setExtensionRendererMode(DefaultRenderersFactory.EXTENSION_RENDERER_MODE_ON)
