@@ -27,6 +27,7 @@ import android.view.MotionEvent;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.ViewTreeObserver;
+import android.view.inputmethod.EditorInfo;
 import android.text.InputType;
 import android.widget.EditText;
 import android.widget.FrameLayout;
@@ -658,9 +659,11 @@ public class TvActivity extends ComponentActivity {
     private void showSourceEditor() {
         final AlertDialog.Builder builder = new AlertDialog.Builder(this);
         final EditText input = new EditText(builder.getContext());
+        input.setId(View.generateViewId());
         input.setSingleLine(true);
         input.setSelectAllOnFocus(true);
         input.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_URI);
+        input.setImeOptions(EditorInfo.IME_ACTION_DONE);
         input.setHint(R.string.source_url_hint);
         input.setText(mIptvSource.getRoot().url);
 
@@ -676,15 +679,36 @@ public class TvActivity extends ComponentActivity {
                 .setNegativeButton(android.R.string.cancel, null)
                 .setPositiveButton(android.R.string.ok, null)
                 .create();
-        dialog.setOnShowListener(ignored -> dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(view -> {
-            String url = input.getText().toString().trim();
-            if (!isSourceUrl(url)) {
-                input.setError(getString(R.string.source_url_invalid));
-                return;
-            }
-            updateSource(url);
-            dialog.dismiss();
-        }));
+        dialog.setOnShowListener(ignored -> {
+            View confirm = dialog.getButton(AlertDialog.BUTTON_POSITIVE);
+            View cancel = dialog.getButton(AlertDialog.BUTTON_NEGATIVE);
+            input.setNextFocusDownId(confirm.getId());
+            confirm.setNextFocusUpId(input.getId());
+            cancel.setNextFocusUpId(input.getId());
+            // Leave touch mode explicitly when TV remotes navigate out of the editor.
+            input.setOnKeyListener((view, keyCode, event) -> {
+                if (keyCode != KeyEvent.KEYCODE_DPAD_DOWN) return false;
+                if (event.getAction() == KeyEvent.ACTION_DOWN) confirm.requestFocusFromTouch();
+                return true;
+            });
+            confirm.setOnClickListener(view -> {
+                String url = input.getText().toString().trim();
+                if (!isSourceUrl(url)) {
+                    input.requestFocus();
+                    input.setError(getString(R.string.source_url_invalid));
+                    return;
+                }
+                updateSource(url);
+                dialog.dismiss();
+            });
+            input.setOnEditorActionListener((view, actionId, event) -> {
+                boolean enter = event != null && event.getKeyCode() == KeyEvent.KEYCODE_ENTER;
+                if (actionId != EditorInfo.IME_ACTION_DONE
+                        && actionId != EditorInfo.IME_ACTION_GO && !enter) return false;
+                if (event == null || event.getAction() == KeyEvent.ACTION_UP) confirm.performClick();
+                return true;
+            });
+        });
         dialog.show();
     }
 
