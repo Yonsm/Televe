@@ -74,11 +74,11 @@ public class PlaylistRepository implements AutoCloseable {
         final boolean rootPlaylist = playlist == root;
         executor.execute(() -> {
             try {
-                if (rootPlaylist) initializeSource(playlist);
+                List<Channel> channels = rootPlaylist ? initializeSource(playlist) : null;
                 final String url = playlist.url;
                 AtomicFile cache = new AtomicFile(new File(directory,
                         Long.toHexString(DiskCache.hash64(url))));
-                List<Channel> channels = refresh ? null : readCache(cache, url);
+                if (channels == null && !refresh) channels = readCache(cache, url);
                 if (channels == null) {
                     channels = new Request(url, "GET", false).execute(
                             new PlaylistParser(rootPlaylist), null, false, true);
@@ -91,9 +91,9 @@ public class PlaylistRepository implements AutoCloseable {
         });
     }
 
-    private void initializeSource(Channel playlist) {
+    private List<Channel> initializeSource(Channel playlist) {
         SharedPreferences preferences = initialPreferences;
-        if (preferences == null) return;
+        if (preferences == null) return null;
         initialPreferences = null;
         HttpURLConnection connection = null;
         try {
@@ -102,26 +102,28 @@ public class PlaylistRepository implements AutoCloseable {
             connection.setReadTimeout(1500);
             connection.setInstanceFollowRedirects(false);
             connection.setUseCaches(false);
-            if (connection.getResponseCode() != HttpURLConnection.HTTP_OK) return;
+            if (connection.getResponseCode() != HttpURLConnection.HTTP_OK) return null;
             List<Channel> channels;
             try (InputStream stream = connection.getInputStream()) {
                 channels = new PlaylistParser(true).onParse(connection.getContentType(),
                         HttpClient.parseCharset(connection.getContentType()), stream, false);
             }
-            if (channels.isEmpty()) return;
+            if (channels.isEmpty()) return null;
             synchronized (this) {
                 // A source entered manually while probing always takes precedence.
-                if (closed || root != playlist) return;
+                if (closed || root != playlist) return null;
                 playlist.id = playlist.title = playlist.url = LOCAL_URL;
                 preferences.edit().putString(PrefUtils.CONFIG_PLAYLIST_URL, LOCAL_URL).apply();
                 writeCache(new AtomicFile(new File(directory,
                         Long.toHexString(DiskCache.hash64(LOCAL_URL)))), LOCAL_URL, channels);
+                return channels;
             }
         } catch (Exception error) {
             Log.d("PlaylistRepository", "Local source unavailable; using default", error);
         } finally {
             if (connection != null) connection.disconnect();
         }
+        return null;
     }
 
     private List<Channel> readCache(AtomicFile file, String url) {

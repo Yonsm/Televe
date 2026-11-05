@@ -79,6 +79,10 @@ public class TvActivity extends ComponentActivity {
     private TextView mProviderView;
     private TextView mTimeView;
     private TextView mChannelBanner;
+    private TextView mPlaylistStatus;
+    private int mPlaylistStatusText = R.string.channel_list_loading;
+    private boolean mPlaylistCanRetry;
+    private int mProviderRequest;
     private ChannelInfoDialog mChannelInfoDialog;
     private String mChannelNumber = "";
     private int mNumberConfirmKey = KeyEvent.KEYCODE_UNKNOWN;
@@ -133,6 +137,8 @@ public class TvActivity extends ComponentActivity {
             if (event.getActionMasked() == MotionEvent.ACTION_DOWN) cancelChannelFocus();
             return false;
         });
+        mPlaylistStatus = mDrawerLayout.findViewById(R.id.playlist_status);
+        mPlaylistStatus.setOnClickListener(view -> retryPlaylist());
         mIptvSource = new PlaylistRepository(this);
 
 
@@ -550,6 +556,24 @@ public class TvActivity extends ComponentActivity {
     private int mChannelRequest;
     private boolean mProviderChanged;
 
+    private void showPlaylistStatus(int text, boolean retry) {
+        mPlaylistStatusText = text;
+        mPlaylistCanRetry = retry;
+        mPlaylistStatus.setVisibility(text == 0 ? View.GONE : View.VISIBLE);
+        if (text != 0) mPlaylistStatus.setText(text);
+        mPlaylistStatus.setFocusable(retry);
+        mPlaylistStatus.setClickable(retry);
+        if (mProviderList.isEmpty() && text != 0) mProviderView.setText(text);
+        if (mChannel == null) mLoadingView.setVisibility(View.GONE);
+    }
+
+    private void retryPlaylist() {
+        if (!mPlaylistCanRetry) return;
+        int index = mProviderList.indexOf(mCurrentFolder);
+        if (index >= 0) setChannelProvider(index, true);
+        else setupProviderMenu(true);
+    }
+
     private void setChannelProvider(int index, boolean refresh) {
         if (index < 0 || index >= mProviderList.size())
             return;
@@ -562,6 +586,7 @@ public class TvActivity extends ComponentActivity {
         mProviderChanged |= previousFolder != null && previousFolder != folder;
         mProviderView.setText(folder.title);
         mChannelList.clear();
+        showPlaylistStatus(R.string.channel_list_loading, false);
         saveStatusString(PrefUtils.STATE_CHANNEL_SERVER, folder.id);
 
         mIptvSource.request(folder, refresh, new ChannelListener() {
@@ -575,8 +600,11 @@ public class TvActivity extends ComponentActivity {
 
             @Override
             public void onError(Throwable err) {
-                showToast("Load list failed: " + folder.id);
                 Log.e(TAG, "Load list failed: " + folder.title, err);
+                runOnUiThread(() -> {
+                    if (!isDestroyed() && request == mChannelRequest && mCurrentFolder == folder)
+                        showPlaylistStatus(R.string.channel_list_failed, true);
+                });
             }
 
             @Override
@@ -589,6 +617,7 @@ public class TvActivity extends ComponentActivity {
                         }
                     }
                     mChannelList.replaceAll(list);
+                    showPlaylistStatus(list.isEmpty() ? R.string.channel_list_empty : 0, list.isEmpty());
                     if (mProviderChanged && !list.isEmpty()) {
                         mChannel = null;
                         mProviderChanged = false;
@@ -605,6 +634,9 @@ public class TvActivity extends ComponentActivity {
 
     private void setupProviderMenu(boolean refresh) {
         final Channel root = mIptvSource.getRoot();
+        final int request = ++mProviderRequest;
+        ++mChannelRequest;
+        showPlaylistStatus(R.string.channel_list_loading, false);
         mIptvSource.request(root, refresh, new ChannelListener() {
             private List<Channel> mResult;
             private int mIndex = 0;
@@ -628,18 +660,28 @@ public class TvActivity extends ComponentActivity {
 
             @Override
             public void onError(Throwable err) {
-                showToast("Load lists failed!");
                 Log.e(TAG, "Load lists failed!", err);
+                runOnUiThread(() -> {
+                    if (!isDestroyed() && request == mProviderRequest && mIptvSource.getRoot() == root)
+                        showPlaylistStatus(R.string.channel_list_failed, true);
+                });
             }
 
             @Override
             public void run() {
                 List<Channel> list = mResult;
-                if (!isDestroyed() && mIptvSource.getRoot() == root && list != null && !list.isEmpty()) {
+                if (!isDestroyed() && request == mProviderRequest && mIptvSource.getRoot() == root && list != null) {
+                    if (list.isEmpty()) {
+                        mProviderList.clear();
+                        mCurrentFolder = null;
+                        mChannelList.clear();
+                        showPlaylistStatus(R.string.channel_list_empty, true);
+                        return;
+                    }
                     mProviderList.clear();
                     if (isPlaylistList(list)) {
                         mProviderList.addAll(list);
-                        setChannelProvider(mIndex, false);
+                        setChannelProvider(mIndex, refresh);
                     } else {
                         mProviderList.add(root);
                         setChannelProvider(0, false);
@@ -759,12 +801,17 @@ public class TvActivity extends ComponentActivity {
     }
 
     private static final int MENU_GROUP_PROVIDER = 1;
+    private static final int MENU_GROUP_STATUS = 2;
 
     private void showProviderMenu() {
         cancelChannelNumber();
         final PopupMenu.OnMenuItemClickListener clickListener = new PopupMenu.OnMenuItemClickListener() {
             @Override
             public boolean onMenuItemClick(MenuItem item) {
+                if (item.getGroupId() == MENU_GROUP_STATUS) {
+                    retryPlaylist();
+                    return true;
+                }
                 if (item.getGroupId() == MENU_GROUP_PROVIDER) {
                     setChannelProvider(item.getItemId(), true);
                     return true;
@@ -814,6 +861,10 @@ public class TvActivity extends ComponentActivity {
         menu.findItem(R.id.action_only_hd).setCheckable(true).setChecked(mOnlyHD);
         menu.findItem(ratioId).setCheckable(true).setChecked(true);
         int id = 0;
+        if (mPlaylistStatusText != 0) {
+            menu.add(MENU_GROUP_STATUS, 0, Menu.NONE, mPlaylistCanRetry
+                    ? R.string.channel_list_retry : mPlaylistStatusText).setEnabled(mPlaylistCanRetry);
+        }
         for (Channel bean : mProviderList) {
             boolean checked = bean.equals(mCurrentFolder);
             menu.add(MENU_GROUP_PROVIDER, id++, Menu.NONE, bean.title).setCheckable(checked).setChecked(checked);
@@ -1045,7 +1096,8 @@ public class TvActivity extends ComponentActivity {
         public void onDrawerOpened(DrawerLayout layout) {
             cancelChannelNumber();
             ((ViewGroup) mToolbar.getView()).setDescendantFocusability(ViewGroup.FOCUS_BLOCK_DESCENDANTS);
-            focusToCurrentChannel();
+            if (mChannelList.size() == 0 && mPlaylistCanRetry) mPlaylistStatus.requestFocus();
+            else focusToCurrentChannel();
             mDrawerLayout.removeCallbacks(mDelayHideSystemUiAction);
             setSystemUiVisible(true);
         }

@@ -59,19 +59,16 @@
                 android:background="?android:attr/selectableItemBackground"
                 android:focusable="true"
                 android:gravity="center_vertical"
-                android:layout_width="wrap_content"
+                android:layout_width="0dp"
+                android:layout_weight="1"
                 android:layout_height="match_parent"
                 android:paddingStart="8dp"
                 android:paddingEnd="8dp"
+                android:text="@string/channel_list_loading"
                 android:ellipsize="marquee"
                 android:singleLine="true"
                 android:textColor="?android:attr/textColorPrimary"
                 android:textSize="14sp"/>
-
-            <Space
-                android:layout_width="0dp"
-                android:layout_height="match_parent"
-                android:layout_weight="1"/>
 
             <TextView
                 android:id="@+id/time"
@@ -86,13 +83,32 @@
 
         </LinearLayout>
 
-        <androidx.recyclerview.widget.RecyclerView
-            android:id="@+id/channel_menu"
-            android:fadeScrollbars="true"
+        <FrameLayout
             android:layout_width="match_parent"
             android:layout_height="0dp"
-            android:layout_weight="1"
-            android:scrollbars="vertical"/>
+            android:layout_weight="1">
+
+            <androidx.recyclerview.widget.RecyclerView
+                android:id="@+id/channel_menu"
+                android:fadeScrollbars="true"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:scrollbars="vertical"/>
+
+            <TextView
+                android:id="@+id/playlist_status"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_gravity="center"
+                android:gravity="center"
+                android:padding="24dp"
+                android:background="?android:attr/selectableItemBackground"
+                android:text="@string/channel_list_loading"
+                android:textColor="?android:attr/textColorPrimary"
+                android:textSize="16sp"
+                android:accessibilityLiveRegion="polite"/>
+
+        </FrameLayout>
 
     </LinearLayout>
 
