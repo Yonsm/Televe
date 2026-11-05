@@ -1,51 +1,90 @@
-# Televe
+<p align="center">
+  <img src="https://raw.githubusercontent.com/Yonsm/Televe/main/app/src/main/res/mipmap-xxxhdpi/ic_launcher_tv.png" width="96" height="96" alt="Televe 应用图标">
+</p>
 
-Televe 是面向 Android 手机、平板和电视的 IPTV 直播应用。
+<h1 align="center">Televe</h1>
 
-- 包名：`net.yonsm.televe`
-- 最低系统版本：Android 6.0（API 23）
-- 编译和目标 SDK：36
-- 版本：2.1.2（versionCode 4）
-- CPU 架构：`armeabi-v7a`、`arm64-v8a`
+<p align="center">面向 Android 手机、平板和电视的 IPTV 直播播放器</p>
 
-## 功能
+<p align="center">
+  <a href="https://github.com/Yonsm/Televe/releases/latest"><img src="https://img.shields.io/github/v/release/Yonsm/Televe?label=Release&amp;color=087f8c" alt="最新版本"></a>
+  <a href="https://github.com/Yonsm/Televe/releases/latest"><img src="https://img.shields.io/badge/Android-6.0%2B-3a853c" alt="Android 6.0 及以上"></a>
+  <a href="https://github.com/Yonsm/Televe/blob/main/LICENSE"><img src="https://img.shields.io/badge/License-GPL--3.0-blue" alt="GPL-3.0 许可证"></a>
+</p>
 
-- 读取 M3U 和 TXT 频道列表，切换直播源、刷新列表。
-- 本地缓存直播源和频道列表，记住上次使用的直播源与频道。
-- 「播放源」菜单支持编辑地址、标记列表，切换来源后自动播放首个频道。
-- 遥控器上下键或上下滑动手势切台，确认键或点击画面打开频道列表。
-- 切台后在画面左下角显示频道号与名称，约 3 秒后自动隐藏。
-- 遥控器、键盘和数字小键盘支持按频道号换台。
-- 菜单中的“频道信息”、遥控器右键或 Info 键、播放画面向右滑动可查看当前源地址与音视频参数。
-- 直播源菜单支持高清筛选、默认比例、16:9 和 4:3。
-- 长按遥控器确认键（OK）或播放画面保存截图到 `Pictures/Televe`；Android 9 及以下需授予存储权限。
-- 手机桌面和 Android TV 启动器均可直接启动应用。
-- 系统缺少相应音频解码器时，使用 FFmpeg 软件解码 MP2、AC-3 等音频。
+<p align="center">
+  <strong><a href="https://github.com/Yonsm/Televe/releases/latest">下载最新版</a></strong>
+  &nbsp; · &nbsp; <a href="https://github.com/Yonsm/Televe">GitHub 仓库</a>
+  &nbsp; · &nbsp; <a href="https://github.com/Yonsm/Televe/issues">问题反馈</a>
+  &nbsp; · &nbsp; <a href="https://github.com/Yonsm/Televe/blob/main/CHANGELOG.md">更新日志</a>
+</p>
 
-默认播放源地址定义在 `internal.playlist.PlaylistRepository.DEFAULT_URL`。菜单中的“播放源”可切换到任意 HTTP 或 HTTPS M3U 地址；确认后会重新请求该地址。应用会自动识别源列表与直接频道列表。
+---
+
+## 功能亮点
+
+| 功能 | 说明 |
+| --- | --- |
+| **多源直播** | 支持 M3U / TXT 频道列表，编辑源地址、标记来源列表、切换与刷新播放源。 |
+| **大屏与触屏** | 适配手机、平板与 Android TV，支持遥控器、键盘和滑动手势。 |
+| **快捷换台** | 上下切台、数字选台、频道抽屉与短暂显示的频道提示。 |
+| **接着观看** | 本地缓存播放列表，记住上次使用的播放源与频道。 |
+| **画面与声音** | 高清筛选、多种画面比例；缺少系统音频解码器时，以 FFmpeg 软件解码 MP2、AC-3 等音频。 |
+| **信息与截图** | 查看源地址及动态音视频参数，长按保存当前画面。 |
+
+## 下载与安装
+
+在 **[最新版下载页](https://github.com/Yonsm/Televe/releases/latest)** 的 **Assets** 中下载 APK 并安装。旧版见[历史版本](https://github.com/Yonsm/Televe/releases)。
+
+| 运行要求 | 说明 |
+| --- | --- |
+| 系统 | Android 6.0（API 23）及以上 |
+| 设备 | Android 手机、平板、电视与电视盒子 |
+| 架构 | ARM 32 位 / 64 位（`armeabi-v7a`、`arm64-v8a`） |
+| 包名 | `net.yonsm.televe` |
+
+首次安装需允许“安装未知应用”。覆盖升级须使用相同签名；卸载会清除设置与缓存。
+
+## 开始观看
+
+1. 打开应用，加载默认源；下次启动恢复上次来源与频道。
+2. 按 **OK** 或点击画面，打开频道列表。
+3. 选择列表顶部的来源名称，切换或编辑播放源。
+
+播放是否可用取决于播放源与网络环境，请仅使用可信且有权访问的来源。
+
+## 使用指南
+
+“播放源”支持 HTTP(S) 列表地址，自动识别来源列表与频道列表。默认地址见 `internal.playlist.PlaylistRepository.DEFAULT_URL`。
+
+IPTV 源在 [Yonsm/IPTV](https://github.com/Yonsm/IPTV/) 仓库维护。
 
 ### 快捷操作
 
-下表的方向键和手势以全屏播放画面为操作起点；频道列表、菜单和弹窗内仍使用方向键移动焦点、确认键选择、返回键关闭。
+**全屏播放时：** 方向键与滑动方向一致，**↑↓ 换台 · ← 列表 · → 信息**。
 
 | 操作 | 遥控器 / 键盘 | 触摸屏 |
 | --- | --- | --- |
-| 上一频道 | 上方向键 | 向上滑动 |
-| 下一频道 | 下方向键 | 向下滑动 |
-| 打开频道列表（抽屉） | 确认键（OK）/ Enter / 左方向键 | 点击画面，或向左滑动 |
-| 查看频道信息 | 右方向键，或 Info 键 | 向右滑动；也可从播放源菜单选择“频道信息” |
-| 频道信息内滚动 | 上 / 下方向键 | 上下拖动 |
-| 查看关于与打开仓库链接 | 在播放源菜单选择“关于”；上下键滚动及聚焦链接，确认键外跳浏览器 | 在播放源菜单选择“关于”；拖动内容并点击仓库链接外跳浏览器 |
-| 打开播放源菜单 | 菜单键（系统未拦截时）；或打开列表后聚焦来源名称并确认 | 打开列表后点击顶部来源名称 |
-| 保存截图 | 长按确认键（OK） | 长按播放画面 |
-| 按频道号换台 | 主键盘 / 数字小键盘输入编号，确认或等待 1.5 秒 | 在频道列表中点击目标频道 |
-| 修改 / 取消编号输入 | 退格键删除；返回键取消 | 不适用 |
-| 关闭列表、菜单或弹窗 | 返回键 | 系统返回操作；“关于”和“频道信息”也可点击弹窗外关闭 |
-| 退出应用 | 播放画面中 3 秒内连续按两次返回键 | 播放画面中 3 秒内连续执行两次系统返回操作 |
+| 上一 / 下一频道 | <kbd>↑</kbd> / <kbd>↓</kbd> | ↑ / ↓ 滑动 |
+| 频道列表 | <kbd>←</kbd> 或 <kbd>OK</kbd> / <kbd>Enter</kbd> | ← 滑动或轻点画面 |
+| 频道信息 | <kbd>→</kbd> 或 <kbd>Info</kbd> | → 滑动 |
+| 播放源菜单 | <kbd>Menu</kbd>，或在列表顶部选来源 | 点击列表顶部来源 |
+| 截图 | 长按 <kbd>OK</kbd> | 长按画面 |
+| 数字换台 | <kbd>0</kbd>–<kbd>9</kbd> 输入频道号 | 在列表中选择频道 |
+| 修改 / 取消数字 | <kbd>⌫</kbd> 退格 / 返回键 | — |
+| 关闭列表或弹窗 | 返回键 | 系统返回 |
+| 退出应用 | 3 秒内连按两次返回键 | 3 秒内连续返回两次 |
+
+菜单与列表内：**↑↓ 移动 · OK 选择 · 返回关闭**。Menu 键仅在未被系统拦截时有效。
+
+- **画面设置**：播放源菜单中选择高清筛选、默认比例、16:9 或 4:3。
+- **截图位置**：`Pictures/Televe`；Android 9 及以下需存储权限。
+- **频道提示**：切台后显示约 3 秒。
+- **关于**：在播放源菜单打开；↑↓ 滚动或聚焦仓库链接，OK 打开；触屏可直接点击链接。
 
 ### 数字换台
 
-频道列表和切台提示显示同一频道号。连续输入数字后，按确认键立即换台，或等待 1.5 秒自动换台；返回键取消输入，退格键删除数字。无效频道号不会中断当前播放。
+输入频道号后，按 **OK** 或等待 **1.5 秒**换台；无效编号不影响当前播放。列表与切台提示使用同一编号。
 
 频道号按播放列表原始顺序生成，再用于列表排序：
 
@@ -61,13 +100,13 @@ Televe 是面向 Android 手机、平板和电视的 IPTV 直播应用。
 
 ### 频道信息
 
-频道信息打开时立即显示，之后每 5 秒更新，支持滚动查看与选择复制文本；选择文本时暂停刷新，避免打断复制。信息包含频道名称、源地址、分辨率、帧率、音视频编码、编码标识、标称平均与峰值码率、解码器、色彩信息、采样率、声道数、语言和缓冲时长。播放器识别到直播或播放错误时，也会显示相应状态。
+显示源地址、分辨率、帧率、音视频编码、码率、解码器、色彩、采样率、声道、语言、缓冲时长，以及播放器识别到的直播或错误状态。
 
-播放源菜单中，“频道信息”位于“长宽比”之后。
+每 **5 秒**刷新，选择文本复制时暂停。遥控器 ↑↓ 滚动，触屏拖动；也可从播放源菜单打开。
 
-“关于”和“频道信息”均为只读弹窗，不设“确定”按钮，使用返回键关闭。频道信息打开后可直接用遥控器上下方向键滚动；触屏支持拖动、选择文本及点击弹窗外关闭。“关于”内容支持滚动，仓库链接可点击或用方向键聚焦后按确认键，在外部浏览器打开；设备没有可用浏览器时会显示提示。
+“关于”和“频道信息”均按返回键或轻点弹窗外关闭。仓库链接在外部浏览器打开，无浏览器时提示。
 
-字段取决于播放源与播放器实际提供的数据，缺失时显示“未知 / 暂不可用”。标称码率不代表实时下载速度。
+缺失字段显示“未知 / 暂不可用”；标称码率不代表实时下载速度。
 
 ### 播放源格式与兼容性
 
@@ -79,7 +118,7 @@ Televe 是面向 Android 手机、平板和电视的 IPTV 直播应用。
 https://example.com/channels.m3u8
 ```
 
-手动选择来源会刷新其频道列表。本地缓存保留解析后的频道信息，普通启动优先读取缓存；缓存不可读取时重新拉取。需要更新播放列表内容时，重新选择对应来源。
+启动时优先读取缓存，缓存不可用时重新拉取。重新选择来源可刷新频道列表。
 
 HTTP(S) 播放地址无法从扩展名识别类型时，默认按 HLS 加载。
 
@@ -94,11 +133,13 @@ app/                 应用入口、频道界面与截图
 library/             播放器、网络与必要的界面工具
 ```
 
-本仓库包含完整源码与 Gradle Wrapper，可以单独检出、构建和发布。两个模块均由本仓库维护，不需要其他应用仓库或共享目录。
+仓库包含完整源码与 Gradle Wrapper，无需其他应用仓库或共享目录。
 
 ## 构建
 
-需要已安装且与 Android Gradle Plugin 兼容的 JDK（推荐 JDK 21）及 Android SDK 36。项目不固定 Gradle Daemon 的 JDK 路径。通过 Android Studio 打开仓库根目录，或在 `local.properties` 配置本机 `sdk.dir` 后执行：
+当前源码版本为 2.1.2（versionCode 4），编译和目标 SDK 为 36。
+
+需要兼容 Android Gradle Plugin 的 JDK（推荐 JDK 21）和 Android SDK 36。用 Android Studio 打开仓库，或在 `local.properties` 配置 `sdk.dir` 后执行：
 
 ```sh
 ./gradlew :app:assembleDebug
@@ -117,9 +158,7 @@ RELEASE_KEY_ALIAS=your-alias
 RELEASE_KEY_PASSWORD=your-key-password
 ```
 
-Release 构建必须配置以上四个参数，缺失时会失败，不会回退为调试签名。密钥路径、别名和密码仅保存在未纳入版本控制的本机 `local.properties` 中。
-
-应用的设置和列表缓存属于自身包名。其他应用的数据不会自动导入。
+Release 必须配置以上四项，不回退为调试签名。请勿将签名信息提交到仓库。
 
 ### 发布与安装
 
@@ -129,15 +168,17 @@ Release 构建必须配置以上四个参数，缺失时会失败，不会回退
 adb install -r app/build/outputs/apk/release/Televe.apk
 ```
 
-覆盖升级必须沿用旧版本的签名证书；签名不一致时不能直接升级。卸载旧版会清除其设置与列表缓存。
-
 ## 更新日志
 
-版本变更记录见 [CHANGELOG.md](CHANGELOG.md)。
+版本变更记录见 [CHANGELOG.md](https://github.com/Yonsm/Televe/blob/main/CHANGELOG.md)，安装包与发行说明见 [GitHub Releases](https://github.com/Yonsm/Televe/releases)。
 
 ## 授权
 
-以 GNU General Public License v3.0 发布，详见 [LICENSE](LICENSE)。
+以 GNU General Public License v3.0 发布，详见 [LICENSE](https://github.com/Yonsm/Televe/blob/main/LICENSE)。
 
 播放器基于 [AndroidX Media3](https://github.com/androidx/media)，音频软件解码使用 [Jellyfin FFmpeg 扩展](https://github.com/jellyfin/jellyfin-androidx-media)（`org.jellyfin.media3:media3-ffmpeg-decoder:1.5.0+1`）。各依赖的源码与许可证见其上游仓库。
+
+---
+
+[项目主页](https://yonsm.github.io/Televe/) · [源码仓库](https://github.com/Yonsm/Televe) · [下载最新版](https://github.com/Yonsm/Televe/releases/latest) · [问题反馈](https://github.com/Yonsm/Televe/issues)
 
