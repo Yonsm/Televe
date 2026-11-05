@@ -2,11 +2,15 @@ package net.yonsm.televe;
 
 import androidx.activity.ComponentActivity;
 import androidx.activity.OnBackPressedCallback;
+import androidx.media3.common.C;
+import androidx.media3.common.Format;
+import androidx.media3.common.Tracks;
 import android.app.AlertDialog;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.res.Resources;
 import android.graphics.Bitmap;
+import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.drawable.Drawable;
 import android.net.Uri;
@@ -84,6 +88,13 @@ public class TvActivity extends ComponentActivity {
     private TextView mProviderView;
     private TextView mTimeView;
     private TextView mChannelBanner;
+    private View mRadioPanel;
+    private TextView mRadioLabel;
+    private TextView mRadioTitle;
+    private TextView mRadioStatus;
+    private TextView mRadioDetails;
+    private String mRadioChannelUrl;
+    private boolean mAudioOnly;
     private TextView mPlaylistStatus;
     private int mPlaylistStatusText = R.string.channel_list_loading;
     private boolean mPlaylistCanRetry;
@@ -151,6 +162,11 @@ public class TvActivity extends ComponentActivity {
 
         mLoadingView = mDrawerLayout.findViewById(R.id.loading);
         mChannelBanner = mDrawerLayout.findViewById(R.id.channel_banner);
+        mRadioPanel = mDrawerLayout.findViewById(R.id.radio_panel);
+        mRadioLabel = mDrawerLayout.findViewById(R.id.radio_label);
+        mRadioTitle = mDrawerLayout.findViewById(R.id.radio_title);
+        mRadioStatus = mDrawerLayout.findViewById(R.id.radio_status);
+        mRadioDetails = mDrawerLayout.findViewById(R.id.radio_details);
 
         mPlayerView = mDrawerLayout.findViewById(R.id.player);
         mPlayerView.addEventListener(mEventListener);
@@ -441,6 +457,11 @@ public class TvActivity extends ComponentActivity {
     }
 
     private void playChannel(Channel channel) {
+        if (!Channel.equals(mRadioChannelUrl, channel.url)) {
+            mRadioChannelUrl = channel.url;
+            mAudioOnly = false;
+            mRadioPanel.setVisibility(View.GONE);
+        }
         if (mChannelInfoDialog != null && !mChannelInfoDialog.isForChannel(channel))
             mChannelInfoDialog.dismiss();
         mToolbar.setTitle(channel.title);
@@ -450,6 +471,24 @@ public class TvActivity extends ComponentActivity {
         mPlayerView.removeCallbacks(mReplayAction);
         mPlaybackStartTime = System.currentTimeMillis();
         mPlayerView.setUri(this, uri, null, sourceType);
+    }
+
+    private void updateRadioPresentation() {
+        mRadioPanel.setVisibility(mAudioOnly ? View.VISIBLE : View.GONE);
+        if (!mAudioOnly || mChannel == null) return;
+        PlayerView.PlaybackInfo info = mPlayerView.getPlaybackInfo();
+        mRadioLabel.setText(info.live ? R.string.radio_live : R.string.radio);
+        mRadioTitle.setText(mChannel.title);
+        boolean reconnecting = mPlaybackFailures > 0 && mLastState != PlayerView.State.READY;
+        int status = reconnecting ? R.string.radio_reconnecting
+                : mLastState == PlayerView.State.READY ? R.string.radio_playing
+                : mLastState == PlayerView.State.BUFFERING ? R.string.radio_buffering : R.string.radio_stopped;
+        mRadioStatus.setText(status);
+        mRadioStatus.setTextColor(Color.parseColor(reconnecting ? "#E2B67D" : "#82D6B0"));
+        Format audio = info.audio;
+        mRadioDetails.setText(audio != null && audio.sampleRate > 0 && audio.channelCount > 0
+                ? getString(R.string.radio_audio_format, audio.sampleRate / 1000f, audio.channelCount) : "");
+        mLoadingView.setVisibility(View.GONE);
     }
 
     private void playChannel(int index) {
@@ -532,6 +571,12 @@ public class TvActivity extends ComponentActivity {
             return;
         }
         if (mLastState != PlayerView.State.READY) return;
+        if (mAudioOnly) {
+            Bitmap snapshot = Bitmap.createBitmap(mRadioPanel.getWidth(), mRadioPanel.getHeight(), Bitmap.Config.ARGB_8888);
+            mRadioPanel.draw(new Canvas(snapshot));
+            saveSnapshot(snapshot);
+            return;
+        }
         mPlayerView.captureFrame((snapshot, error) -> {
             if (error != null) {
                 showToast(getString(R.string.snapshot_failed, error.getMessage()));
@@ -786,6 +831,9 @@ public class TvActivity extends ComponentActivity {
         boolean changed = !Channel.equals(url, mIptvSource.getRoot().url);
         if (changed) {
             resetPlaybackFailures();
+            mAudioOnly = false;
+            mRadioChannelUrl = null;
+            mRadioPanel.setVisibility(View.GONE);
             mChannel = null;
             mPlayerView.removeCallbacks(mReplayAction);
             mPlayerView.stop();
@@ -1019,6 +1067,7 @@ public class TvActivity extends ComponentActivity {
 
             int visibility = state == PlayerView.State.BUFFERING ? View.VISIBLE : View.GONE;
             mLoadingView.setVisibility(visibility);
+            updateRadioPresentation();
 
             if (state == PlayerView.State.READY) {
                 final int width = mPlayerView.getVideoWidth();
@@ -1038,12 +1087,21 @@ public class TvActivity extends ComponentActivity {
         }
 
         @Override
+        public void onTracksChanged(Tracks tracks) {
+            if (!tracks.getGroups().isEmpty()) {
+                mAudioOnly = tracks.isTypeSelected(C.TRACK_TYPE_AUDIO) && !tracks.containsType(C.TRACK_TYPE_VIDEO);
+                updateRadioPresentation();
+            }
+        }
+
+        @Override
         public void onError(int param1, int param2, Exception cause) {
             mPlayerView.removeCallbacks(mResetPlaybackFailuresAction);
             String url = mChannel != null ? mChannel.url : null;
             Log.w(TAG, "onError: " + url, cause);
             if (mResumed && mChannel != null) {
                 mPlaybackFailures = Math.min(mPlaybackFailures + 1, PLAYBACK_FAILURE_THRESHOLD);
+                updateRadioPresentation();
                 if (mPlaybackFailures == PLAYBACK_FAILURE_THRESHOLD && !mPlaybackFailureShown) {
                     mPlaybackFailureShown = true;
                     showToast(getString(R.string.channel_playback_failed));

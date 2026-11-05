@@ -6,6 +6,13 @@
     <string name="channel_list_failed">加载失败，点击重试</string>
     <string name="channel_list_retry">重新加载</string>
     <string name="channel_playback_failed">播放失败，正在重试…</string>
+    <string name="radio">广播</string>
+    <string name="radio_live">广播直播</string>
+    <string name="radio_playing">正在播放</string>
+    <string name="radio_buffering">缓冲中…</string>
+    <string name="radio_reconnecting">正在重新连接…</string>
+    <string name="radio_stopped">已停止</string>
+    <string name="radio_audio_format">%1$.1f kHz / %2$d 声道</string>
     <string name="channel_info">频道信息</string>
     <string name="channel_url">源地址</string>
     <string name="channel_buffer">已缓冲</string>

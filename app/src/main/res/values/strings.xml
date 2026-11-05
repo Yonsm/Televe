@@ -6,6 +6,13 @@
     <string name="channel_list_failed">Loading failed. Tap to retry</string>
     <string name="channel_list_retry">Retry loading</string>
     <string name="channel_playback_failed">Playback failed. Retrying...</string>
+    <string name="radio">Radio</string>
+    <string name="radio_live">Live Radio</string>
+    <string name="radio_playing">Playing</string>
+    <string name="radio_buffering">Buffering...</string>
+    <string name="radio_reconnecting">Reconnecting...</string>
+    <string name="radio_stopped">Stopped</string>
+    <string name="radio_audio_format">%1$.1f kHz / %2$d channels</string>
     <string name="channel_info">Channel information</string>
     <string name="channel_url">Stream URL</string>
     <string name="channel_buffer">Buffered</string>

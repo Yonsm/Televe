@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <io.library.widget.DrawerLayout
     xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
     android:id="@+id/drawer_layout"
     android:layout_width="match_parent"
@@ -12,6 +13,75 @@
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:layout_gravity="center"/>
+
+    <FrameLayout
+        android:id="@+id/radio_panel"
+        android:theme="@style/Theme.AppCompat"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="#171B1A"
+        android:visibility="gone">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center"
+            android:orientation="vertical"
+            android:gravity="center"
+            android:padding="24dp">
+
+            <androidx.appcompat.widget.AppCompatImageView
+                android:layout_width="48dp"
+                android:layout_height="48dp"
+                android:layout_marginBottom="12dp"
+                android:src="@android:drawable/ic_lock_silent_mode_off"
+                app:tint="#82D6B0"
+                android:importantForAccessibility="no"
+                android:contentDescription="@null"/>
+
+            <TextView
+                android:id="@+id/radio_label"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:gravity="center"
+                android:textColor="#B7C2BC"
+                android:textSize="14sp"/>
+
+            <androidx.appcompat.widget.AppCompatTextView
+                android:id="@+id/radio_title"
+                android:layout_width="match_parent"
+                android:layout_height="80dp"
+                android:gravity="center"
+                android:maxLines="2"
+                android:ellipsize="end"
+                android:textColor="#F3F5F3"
+                android:textSize="28sp"
+                app:autoSizeTextType="uniform"
+                app:autoSizeMinTextSize="18sp"
+                app:autoSizeMaxTextSize="28sp"
+                app:autoSizeStepGranularity="1sp"/>
+
+            <TextView
+                android:id="@+id/radio_status"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:gravity="center"
+                android:textColor="#82D6B0"
+                android:textSize="16sp"
+                android:accessibilityLiveRegion="polite"/>
+
+            <TextView
+                android:id="@+id/radio_details"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="12dp"
+                android:gravity="center"
+                android:textColor="#B7C2BC"
+                android:textSize="14sp"/>
+
+        </LinearLayout>
+
+    </FrameLayout>
 
     <ProgressBar
         android:id="@+id/loading"

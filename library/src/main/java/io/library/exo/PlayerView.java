@@ -78,6 +78,7 @@ public class PlayerView extends FrameLayout {
         void onError(int param1, int param2, Exception cause);
 
         default void onCues(List<Cue> cues) {}
+        default void onTracksChanged(Tracks tracks) {}
     }
 
 
@@ -504,6 +505,12 @@ public class PlayerView extends FrameLayout {
             if (mExoPlayer == null || mExoPlayer.getPlayerError() != error) return;
             mLastPlaybackError = error;
             notifyError(error.errorCode, 0, error);
+        }
+
+        @Override
+        public void onTracksChanged(Tracks tracks) {
+            for (EventListener listener : mEventListeners)
+                listener.onTracksChanged(tracks);
         }
 
         @Override
