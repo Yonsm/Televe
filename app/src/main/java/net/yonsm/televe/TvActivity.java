@@ -236,6 +236,7 @@ public class TvActivity extends ComponentActivity {
         super.onPause();
 
         mResumed = false;
+        if (mDrawerLayout.isDrawerOpened()) mDrawerLayout.closeDrawer(false);
         cancelChannelFocus();
         mChannelMenu.stopScroll();
         cancelChannelNumber();
@@ -893,12 +894,15 @@ public class TvActivity extends ComponentActivity {
                 } else if (itemId == R.id.aspect_ratio_4_3) {
                     mAspectRatio = 4 / 3f;
                 } else if (itemId == R.id.source) {
+                    mDrawerLayout.closeDrawer(false);
                     showSourceEditor();
                     return true;
                 } else if (itemId == R.id.about) {
+                    mDrawerLayout.closeDrawer(false);
                     new AboutDialog(TvActivity.this).show();
                     return true;
                 } else if (itemId == R.id.channel_info) {
+                    mDrawerLayout.closeDrawer(false);
                     showChannelInfo();
                     return true;
                 }
@@ -1178,6 +1182,7 @@ public class TvActivity extends ComponentActivity {
 
         @Override
         public void onDrawerOpened(DrawerLayout layout) {
+            mLastBackPressedTime = 0;
             cancelChannelNumber();
             ((ViewGroup) mToolbar.getView()).setDescendantFocusability(ViewGroup.FOCUS_BLOCK_DESCENDANTS);
             if (mChannelList.size() == 0 && mPlaylistCanRetry) mPlaylistStatus.requestFocus();

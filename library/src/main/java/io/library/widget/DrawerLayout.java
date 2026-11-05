@@ -7,6 +7,7 @@ import android.animation.ValueAnimator;
 import android.app.Activity;
 import android.content.Context;
 import android.content.res.Resources;
+import android.content.res.Configuration;
 import android.content.res.TypedArray;
 import android.graphics.Canvas;
 import android.graphics.Color;
@@ -16,6 +17,7 @@ import android.graphics.Rect;
 import android.graphics.Region;
 import android.graphics.Shader;
 import android.graphics.drawable.Drawable;
+import android.graphics.drawable.ColorDrawable;
 import android.os.Build;
 import io.library.drawable.DrawerArrowDrawable;
 import android.util.AttributeSet;
@@ -29,6 +31,7 @@ import android.view.ViewParent;
 import android.view.animation.Interpolator;
 import android.widget.FrameLayout;
 import android.widget.ImageView;
+import android.widget.PopupWindow;
 
 public class DrawerLayout extends FrameLayout {
 	private static final String TAG = "DrawerLayout";
@@ -53,6 +56,9 @@ public class DrawerLayout extends FrameLayout {
 	}
 
 	private boolean mDrawerOpened;
+	private ObjectAnimator mDrawerAnimator;
+	private final boolean mUseDrawerWindow;
+	private PopupWindow mDrawerWindow;
 	private boolean mIndicatorEnabled;
 	private boolean mFirstLayout = true;
 	private int mAnimationDuration;
@@ -83,6 +89,11 @@ public class DrawerLayout extends FrameLayout {
 
 	public DrawerLayout(Context context, AttributeSet attrs, int defStyleAttr) {
 		super(context, attrs, defStyleAttr);
+		// A separate UI window stays above legacy TV hardware video overlays.
+		mUseDrawerWindow = Build.VERSION.SDK_INT >= Build.VERSION_CODES.N
+				&& Build.VERSION.SDK_INT <= Build.VERSION_CODES.P
+				&& (getResources().getConfiguration().uiMode & Configuration.UI_MODE_TYPE_MASK)
+				== Configuration.UI_MODE_TYPE_TELEVISION;
 		setDescendantFocusability(ViewGroup.FOCUS_AFTER_DESCENDANTS);
 
 		final Resources res = context.getResources();
@@ -442,18 +453,30 @@ public class DrawerLayout extends FrameLayout {
 	}
 
 	protected void moveDrawer(final boolean open, int duration) {
+		if (mDrawerAnimator != null) {
+			mDrawerAnimator.removeAllListeners();
+			mDrawerAnimator.cancel();
+			mDrawerAnimator = null;
+		}
 		if (open && !mDrawerOpened && mListener != null)
 			mListener.onDrawerOpening(this);
 		mDrawerOpened = open;
+		if (mUseDrawerWindow && getWindowToken() != null) {
+			moveDrawerWindow(open);
+			return;
+		}
 
 		final int offset = mDrawerView.getFitsSystemWindows() ? 0 : mWindowInsets.left;
 		final float target = open ? offset : - offset - mDrawerSize;
 		final float current = mDrawerView.getTranslationX();
-		if (current == target)
+		if (current == target) {
+			onDrawerStateChanged(open);
 			return;
+		}
 
 		if (duration > 0) {
 			ObjectAnimator animator = ObjectAnimator.ofFloat(mDrawerView, "translationX", current, target);
+			mDrawerAnimator = animator;
 			animator.addUpdateListener(new ValueAnimator.AnimatorUpdateListener() {
 				@Override
 				public void onAnimationUpdate(ValueAnimator animator) {
@@ -466,6 +489,7 @@ public class DrawerLayout extends FrameLayout {
 			animator.addListener(new AnimatorListenerAdapter() {
 				@Override
 				public void onAnimationEnd(Animator animator) {
+					mDrawerAnimator = null;
 					onDrawerStateChanged(open);
 				}
 			});
@@ -473,12 +497,83 @@ public class DrawerLayout extends FrameLayout {
 			animator.setDuration(duration);
 			animator.start();
 		} else {
-			mDrawerView.setTranslationX(target - current);
+			mDrawerView.setTranslationX(target);
 			setDrawerElevation(open ? 1 : 0);
 			if (mArrow != null)
 				mArrow.setProgress(open ? 1 : 0);
 			onDrawerStateChanged(open);
 		}
+	}
+
+	private void moveDrawerWindow(boolean open) {
+		if (!open) {
+			if (mDrawerWindow != null) mDrawerWindow.dismiss();
+			else {
+				mDrawerView.setTranslationX(-mDrawerSize);
+				onDrawerStateChanged(false);
+			}
+			return;
+		}
+		if (mDrawerWindow != null) return;
+		final int index = indexOfChild(mDrawerView);
+		final ViewGroup.LayoutParams params = mDrawerView.getLayoutParams();
+		FrameLayout content = new FrameLayout(getContext()) {
+			private float startX;
+			private float startY;
+
+			@Override
+			public boolean dispatchTouchEvent(MotionEvent event) {
+				if (event.getActionMasked() == MotionEvent.ACTION_DOWN) {
+					startX = event.getX();
+					startY = event.getY();
+				} else if (event.getActionMasked() == MotionEvent.ACTION_UP) {
+					float dx = event.getX() - startX;
+					float dy = event.getY() - startY;
+					if (Math.abs(dx) > 40 * getResources().getDisplayMetrics().density
+							&& Math.abs(dx) > Math.abs(dy)) {
+						MotionEvent cancel = MotionEvent.obtain(event);
+						cancel.setAction(MotionEvent.ACTION_CANCEL);
+						super.dispatchTouchEvent(cancel);
+						cancel.recycle();
+						closeDrawer(false);
+						return true;
+					}
+				}
+				return super.dispatchTouchEvent(event);
+			}
+
+			@Override
+			public View focusSearch(View focused, int direction) {
+				View next = super.focusSearch(focused, direction);
+				if ((direction == FOCUS_LEFT || direction == FOCUS_RIGHT) && !isOwned(mDrawerView, next)) {
+					post(() -> {
+						if (isAttachedToWindow()) closeDrawer(false);
+					});
+					return focused;
+				}
+				return next;
+			}
+		};
+		removeView(mDrawerView);
+		mDrawerView.setTranslationX(0);
+		mDrawerView.setElevation(0);
+		content.addView(mDrawerView, new FrameLayout.LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT));
+		PopupWindow window = new PopupWindow(content, mDrawerSize, LayoutParams.MATCH_PARENT, true);
+		mDrawerWindow = window;
+		window.setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
+		window.setOutsideTouchable(true);
+		window.setInputMethodMode(PopupWindow.INPUT_METHOD_NOT_NEEDED);
+		window.setAnimationStyle(0);
+		window.setOnDismissListener(() -> {
+			mDrawerWindow = null;
+			mDrawerOpened = false;
+			content.removeView(mDrawerView);
+			mDrawerView.setTranslationX(-mDrawerSize);
+			addView(mDrawerView, Math.min(index, getChildCount()), params);
+			onDrawerStateChanged(false);
+		});
+		window.showAtLocation(this, Gravity.TOP | Gravity.LEFT, 0, 0);
+		onDrawerStateChanged(true);
 	}
 
 	protected void onDrawerStateChanged(boolean open) {

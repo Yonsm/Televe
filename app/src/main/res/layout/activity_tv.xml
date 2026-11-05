@@ -112,7 +112,7 @@
     <!--Don't use RelativeLayout which cause key navigation issue-->
     <LinearLayout
         android:orientation="vertical"
-        android:background="#80000000"
+        android:background="@color/colorPrimary"
         android:fitsSystemWindows="true"
         android:layout_gravity="left"
         tools:ignore="RtlHardcoded"
