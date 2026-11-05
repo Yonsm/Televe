@@ -41,6 +41,8 @@ import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import internal.playlist.Channel;
 import internal.playlist.ChannelComparator;
@@ -65,6 +67,7 @@ public class TvActivity extends ComponentActivity {
     private static final int REPLAY_DELAY = 1000;
     private static final int PLAYBACK_FAILURE_THRESHOLD = 3;
     private static final int STABLE_PLAYBACK_MS = 30000;
+    private static final Pattern TITLE_NUMBER = Pattern.compile("\\d+");
 
     private float mDensity;
     private float mAspectRatio;
@@ -457,7 +460,7 @@ public class TvActivity extends ComponentActivity {
         if (channel == null)
             return;
         if (Channel.equals(channel, mChannel) && mLastState == PlayerView.State.READY) {
-            showChannelBanner(getString(R.string.channel_number_name, String.valueOf(channel.number), channel.title));
+            showChannelBanner(formatChannelTitle(channel.number, channel.title));
             return;
         }
 
@@ -465,7 +468,7 @@ public class TvActivity extends ComponentActivity {
         mChannel = channel;
         mChannelList.setCurrentItem(index);
         playChannel(mChannel);
-        showChannelBanner(getString(R.string.channel_number_name, String.valueOf(channel.number), channel.title));
+        showChannelBanner(formatChannelTitle(channel.number, channel.title));
 
         saveStatusString(PrefUtils.STATE_CHANNEL_URL, mChannel.url);
     }
@@ -485,6 +488,17 @@ public class TvActivity extends ComponentActivity {
         if (next >= 0 && next < count)
             playChannel(next);
         return true;
+    }
+
+    private String formatChannelTitle(long channelNumber, String title) {
+        if (title == null) title = "";
+        if (channelNumber < 0) return title;
+        String number = String.valueOf(channelNumber);
+        Matcher matcher = TITLE_NUMBER.matcher(title);
+        while (matcher.find()) {
+            if (number.equals(matcher.group())) return title;
+        }
+        return getString(R.string.channel_number_name, number, title);
     }
 
     private void showChannelBanner(CharSequence text) {
@@ -752,6 +766,10 @@ public class TvActivity extends ComponentActivity {
 
     private void showChannelInfo() {
         cancelChannelNumber();
+        if (mChannelInfoDialog != null && mChannelInfoDialog.isShowing()) {
+            mChannelInfoDialog.dismiss();
+            return;
+        }
         if (mChannel != null && (mChannelInfoDialog == null || !mChannelInfoDialog.isShowing())) {
             mChannelInfoDialog = new ChannelInfoDialog(this, mChannel, mPlayerView);
             mChannelInfoDialog.show();
@@ -903,8 +921,7 @@ public class TvActivity extends ComponentActivity {
                     icon = is4K(title) ? m4KIcon : mHDIcon;
                     title = title.substring(0, title.length() - 2).trim();
                 }
-                titleView.setText(getString(R.string.channel_number_name,
-                        String.valueOf(channel.number), title));
+                titleView.setText(formatChannelTitle(channel.number, title));
                 titleView.setCompoundDrawablesWithIntrinsicBounds(null, null, icon, null);
             }
         }
@@ -1096,6 +1113,12 @@ public class TvActivity extends ComponentActivity {
 
     private final DrawerLayout.Listener mDrawerListener = new DrawerLayout.Listener() {
         @Override
+        public void onDrawerOpening(DrawerLayout layout) {
+            cancelChannelNumber();
+            hideChannelBanner();
+        }
+
+        @Override
         public void onDrawerOpened(DrawerLayout layout) {
             cancelChannelNumber();
             ((ViewGroup) mToolbar.getView()).setDescendantFocusability(ViewGroup.FOCUS_BLOCK_DESCENDANTS);
@@ -1128,6 +1151,10 @@ public class TvActivity extends ComponentActivity {
         @Override
         public boolean onKey(View v, int keyCode, KeyEvent event) {
             if (handleChannelNumberKey(event)) return true;
+            if (keyCode == KeyEvent.KEYCODE_DPAD_RIGHT) {
+                if (event.getAction() == KeyEvent.ACTION_UP && !event.isCanceled()) showChannelInfo();
+                return true;
+            }
             if (event.getAction() == KeyEvent.ACTION_DOWN) {
                 switch (keyCode) {
                     case KeyEvent.KEYCODE_DPAD_UP:
@@ -1136,9 +1163,6 @@ public class TvActivity extends ComponentActivity {
                         return playNextItem(true);
                     case KeyEvent.KEYCODE_DPAD_LEFT:
                         if (event.getRepeatCount() == 0) mDrawerLayout.openDrawer(true);
-                        return true;
-                    case KeyEvent.KEYCODE_DPAD_RIGHT:
-                        if (event.getRepeatCount() == 0) showChannelInfo();
                         return true;
                 }
             }

@@ -2,6 +2,11 @@ package internal.dialog;
 
 import android.app.AlertDialog;
 import android.content.Context;
+import android.graphics.Typeface;
+import android.text.SpannableStringBuilder;
+import android.text.Spanned;
+import android.text.TextUtils;
+import android.text.style.StyleSpan;
 import android.view.KeyEvent;
 import android.view.MotionEvent;
 import android.view.View;
@@ -25,13 +30,15 @@ public class ChannelInfoDialog extends AlertDialog {
     private final String mUrl;
     private final TextView mText;
     private final ScrollView mScroll;
+    private float mTouchDownX;
+    private float mTouchDownY;
+    private boolean mSwipeToDismiss;
 
     public ChannelInfoDialog(Context context, Channel channel, PlayerView player) {
         super(context);
         mPlayer = player;
         mName = channel.title;
         mUrl = channel.url;
-        setTitle(R.string.channel_info);
         int padding = Math.round(getContext().getResources().getDisplayMetrics().density * 24);
         mText = new TextView(getContext());
         mText.setPadding(padding, padding / 2, padding, padding / 2);
@@ -53,6 +60,10 @@ public class ChannelInfoDialog extends AlertDialog {
     @Override
     public boolean dispatchKeyEvent(KeyEvent event) {
         int key = event.getKeyCode();
+        if (key == KeyEvent.KEYCODE_DPAD_RIGHT || key == KeyEvent.KEYCODE_INFO) {
+            if (event.getAction() == KeyEvent.ACTION_UP && !event.isCanceled()) dismiss();
+            return true;
+        }
         if ((key == KeyEvent.KEYCODE_DPAD_UP || key == KeyEvent.KEYCODE_DPAD_DOWN)
                 && !mText.hasSelection()) {
             if (event.getAction() == KeyEvent.ACTION_DOWN) {
@@ -67,8 +78,25 @@ public class ChannelInfoDialog extends AlertDialog {
 
     @Override
     public boolean dispatchTouchEvent(MotionEvent event) {
-        if (event.getActionMasked() == MotionEvent.ACTION_DOWN)
+        if (event.getActionMasked() == MotionEvent.ACTION_DOWN) {
+            mTouchDownX = event.getX();
+            mTouchDownY = event.getY();
+            mSwipeToDismiss = !mText.hasSelection();
             mScroll.setDescendantFocusability(ViewGroup.FOCUS_AFTER_DESCENDANTS);
+        } else if (event.getActionMasked() == MotionEvent.ACTION_UP && mSwipeToDismiss && !mText.hasSelection()) {
+            float dx = event.getX() - mTouchDownX;
+            float dy = event.getY() - mTouchDownY;
+            if (dx > 40 * getContext().getResources().getDisplayMetrics().density && dx > Math.abs(dy)) {
+                MotionEvent cancel = MotionEvent.obtain(event);
+                cancel.setAction(MotionEvent.ACTION_CANCEL);
+                super.dispatchTouchEvent(cancel);
+                cancel.recycle();
+                dismiss();
+                return true;
+            }
+        } else if (event.getActionMasked() == MotionEvent.ACTION_CANCEL) {
+            mSwipeToDismiss = false;
+        }
         return super.dispatchTouchEvent(event);
     }
 
@@ -76,8 +104,8 @@ public class ChannelInfoDialog extends AlertDialog {
         @Override
         public void run() {
             if (!mText.hasSelection()) {
-                String text = buildInfo();
-                if (!text.contentEquals(mText.getText())) mText.setText(text);
+                CharSequence text = buildInfo();
+                if (!TextUtils.equals(text, mText.getText())) mText.setText(text);
             }
             mText.postDelayed(this, 5000);
         }
@@ -87,15 +115,14 @@ public class ChannelInfoDialog extends AlertDialog {
         return Channel.equals(mName, channel.title) && Channel.equals(mUrl, channel.url);
     }
 
-    private String buildInfo() {
+    private CharSequence buildInfo() {
         PlayerView.PlaybackInfo info = mPlayer.getPlaybackInfo();
-        StringBuilder text = new StringBuilder();
-        row(text, R.string.channel_name, mName);
+        SpannableStringBuilder text = new SpannableStringBuilder();
+        section(text, Channel.isEmpty(mName) ? getContext().getString(R.string.channel_unknown) : mName);
         row(text, R.string.channel_url, mUrl);
         row(text, R.string.channel_buffer, String.format(Locale.getDefault(), "%.1f s", info.bufferedDurationMs / 1000f));
-        if (info.live) text.append(getContext().getString(R.string.channel_live)).append("\n\n");
         if (info.error != null) row(text, R.string.channel_error, info.error.getErrorCodeName());
-        text.append('\n').append(getContext().getString(R.string.channel_video)).append('\n');
+        section(text, getContext().getString(R.string.channel_video));
         Format video = info.video;
         VideoSize size = info.videoSize;
         int width = size != null && size.width > 0 ? size.width : video != null ? video.width : -1;
@@ -103,6 +130,8 @@ public class ChannelInfoDialog extends AlertDialog {
         row(text, R.string.channel_resolution, width > 0 && height > 0 ? width + " x " + height : null);
         row(text, R.string.channel_frame_rate, video != null && video.frameRate > 0
                 ? String.format(Locale.getDefault(), "%.3f fps", video.frameRate) : null);
+        if (video != null && video.colorInfo != null) row(text, R.string.channel_color, video.colorInfo.toString());
+        format(text, video, info.videoDecoder);
         row(text, R.string.channel_decode_mode, info.videoHardwareAccelerated == null ? null
                 : getContext().getString(info.videoHardwareAccelerated
                 ? R.string.channel_decode_hardware : R.string.channel_decode_software));
@@ -111,18 +140,24 @@ public class ChannelInfoDialog extends AlertDialog {
                 ? R.string.channel_decode_supported : R.string.channel_decode_exceeded));
         row(text, R.string.channel_rendered_frames, info.renderedFrames);
         row(text, R.string.channel_dropped_frames, info.droppedFrames);
-        format(text, video, info.videoDecoder);
-        if (video != null && video.colorInfo != null) row(text, R.string.channel_color, video.colorInfo.toString());
-        text.append('\n').append(getContext().getString(R.string.channel_audio)).append('\n');
+        section(text, getContext().getString(R.string.channel_audio));
         Format audio = info.audio;
         format(text, audio, info.audioDecoder);
         row(text, R.string.channel_sample_rate, audio != null && audio.sampleRate > 0 ? audio.sampleRate + " Hz" : null);
         row(text, R.string.channel_audio_channels, audio != null && audio.channelCount > 0 ? audio.channelCount : null);
         row(text, R.string.channel_language, audio != null ? audio.language : null);
-        return text.toString();
+        return text;
     }
 
-    private void format(StringBuilder text, Format format, String decoder) {
+    private void section(SpannableStringBuilder text, CharSequence label) {
+        if (text.length() > 0) text.append('\n');
+        int start = text.length();
+        text.append(label);
+        text.setSpan(new StyleSpan(Typeface.BOLD), start, text.length(), Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+        text.append('\n');
+    }
+
+    private void format(SpannableStringBuilder text, Format format, String decoder) {
         row(text, R.string.channel_mime, format != null ? format.sampleMimeType : null);
         row(text, R.string.channel_codecs, format != null ? format.codecs : null);
         row(text, R.string.channel_bitrate, format != null ? bitrate(format.averageBitrate) : null);
@@ -134,9 +169,9 @@ public class ChannelInfoDialog extends AlertDialog {
         return bits > 0 ? String.format(Locale.getDefault(), "%.1f kb/s", bits / 1000f) : null;
     }
 
-    private void row(StringBuilder text, int label, Object value) {
+    private void row(SpannableStringBuilder text, int label, Object value) {
         text.append(getContext().getString(label)).append(": ")
                 .append(value == null || value.toString().isEmpty()
-                        ? getContext().getString(R.string.channel_unknown) : value).append("\n\n");
+                        ? getContext().getString(R.string.channel_unknown) : value.toString()).append('\n');
     }
 }

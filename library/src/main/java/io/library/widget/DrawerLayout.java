@@ -47,6 +47,7 @@ public class DrawerLayout extends FrameLayout {
 	};
 
 	public interface Listener {
+		default void onDrawerOpening(DrawerLayout layout) {}
 		void onDrawerOpened(DrawerLayout layout);
 		void onDrawerClosed(DrawerLayout layout);
 	}
@@ -441,6 +442,8 @@ public class DrawerLayout extends FrameLayout {
 	}
 
 	protected void moveDrawer(final boolean open, int duration) {
+		if (open && !mDrawerOpened && mListener != null)
+			mListener.onDrawerOpening(this);
 		mDrawerOpened = open;
 
 		final int offset = mDrawerView.getFitsSystemWindows() ? 0 : mWindowInsets.left;
