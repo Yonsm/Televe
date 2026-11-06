@@ -77,6 +77,9 @@ public class TvActivity extends ComponentActivity {
     private float mAspectRatio;
     private boolean mOnlyHD;
     private Channel mChannel;
+    private String mRestoredChannelUrl;
+    private String mPlaybackUrl;
+    private boolean mOpenedExternally;
     private Drawable mPlayIcon;
     private Drawable mHDIcon;
     private Drawable m4KIcon;
@@ -204,13 +207,8 @@ public class TvActivity extends ComponentActivity {
                 if (!Channel.isEmpty(title)) channel.title = title;
             }
         }
-        if (channel == null) {
-            String url = loadStatusString(PrefUtils.STATE_CHANNEL_URL, null);
-            if (!Channel.isEmpty(url)) {
-                channel = Channel.fromUrl(url);
-                channel.url = url;
-            }
-        }
+        mOpenedExternally = channel != null;
+        if (channel == null) mRestoredChannelUrl = loadStatusString(PrefUtils.STATE_CHANNEL_URL, null);
         mChannel = channel;
         setupProviderMenu(false);
     }
@@ -249,6 +247,7 @@ public class TvActivity extends ComponentActivity {
         mPlayerView.removeCallbacks(mReplayAction);
         mPlayerView.removeCallbacks(mResetPlaybackFailuresAction);
         mPlayerView.stop();
+        mPlaybackUrl = null;
         if (mTimeView != null)
             mTimeView.removeCallbacks(mUpdateTimeAction);
     }
@@ -261,7 +260,8 @@ public class TvActivity extends ComponentActivity {
         resetPlaybackFailures();
         scheduleTimeUpdate();
 
-        if (mChannel != null)
+        if (mChannel != null && (mOpenedExternally
+                || (mCurrentFolder != null && fixCurrentIndexIfNecessary() >= 0)))
             playChannel(mChannel);
     }
 
@@ -471,6 +471,7 @@ public class TvActivity extends ComponentActivity {
         int sourceType = PlayerView.getFixedSourceType(uri, true);
         mPlayerView.removeCallbacks(mReplayAction);
         mPlaybackStartTime = System.currentTimeMillis();
+        mPlaybackUrl = channel.url;
         mPlayerView.setUri(this, uri, null, sourceType);
     }
 
@@ -499,24 +500,26 @@ public class TvActivity extends ComponentActivity {
         Channel channel = mChannelList.get(index);
         if (channel == null)
             return;
-        if (Channel.equals(channel, mChannel) && mLastState == PlayerView.State.READY) {
-            showChannelBanner(formatChannelTitle(channel.number, channel.title));
-            return;
-        }
+        if (Channel.equals(channel, mChannel) && Channel.equals(mPlaybackUrl, channel.url)) return;
 
         resetPlaybackFailures();
+        mOpenedExternally = false;
         mChannel = channel;
         mChannelList.setCurrentItem(index);
         playChannel(mChannel);
         showChannelBanner(formatChannelTitle(channel.number, channel.title));
 
-        saveStatusString(PrefUtils.STATE_CHANNEL_URL, mChannel.url);
+        SharedPreferences.Editor state = PrefUtils.getStatePref(this).edit()
+                .putString(PrefUtils.STATE_CHANNEL_URL, mChannel.url);
+        if (mCurrentFolder != null) state.putString(PrefUtils.STATE_CHANNEL_SERVER, mCurrentFolder.id);
+        state.apply();
     }
 
     private boolean playNextItem(boolean forward) {
         cancelChannelNumber();
-        int index = fixCurrentIndexIfNecessary();
         int count = mChannelList.size();
+        if (count == 0) return false;
+        int index = fixCurrentIndexIfNecessary();
         int next;
         if (forward)
             next = index < count - 1 ? index + 1 : 0;
@@ -640,6 +643,7 @@ public class TvActivity extends ComponentActivity {
         final Channel folder = mCurrentFolder = mProviderList.get(index);
         final int request = ++mChannelRequest;
         mProviderChanged |= previousFolder != null && previousFolder != folder;
+        if (mProviderChanged) mRestoredChannelUrl = null;
         mProviderView.setText(folder.title);
         mChannelList.clear();
         showPlaylistStatus(R.string.channel_list_loading, false);
@@ -678,10 +682,22 @@ public class TvActivity extends ComponentActivity {
                         mChannel = null;
                         mProviderChanged = false;
                     }
-                    if (mChannel == null) {
-                        playChannel(0);
-                    } else {
-                        fixCurrentIndexIfNecessary();
+                    if (!list.isEmpty()) {
+                        if (mChannel == null) {
+                            int restore = 0;
+                            for (int i = 0; i < mChannelList.size(); i++) {
+                                if (Channel.equals(mChannelList.get(i).url, mRestoredChannelUrl)) {
+                                    restore = i;
+                                    break;
+                                }
+                            }
+                            playChannel(restore);
+                        } else if (!mOpenedExternally && fixCurrentIndexIfNecessary() < 0) {
+                            playChannel(0);
+                        }
+                        mRestoredChannelUrl = null;
+                        if (mResumed && mChannel != null && !Channel.equals(mPlaybackUrl, mChannel.url))
+                            playChannel(mChannel);
                     }
                 }
             }
@@ -829,6 +845,8 @@ public class TvActivity extends ComponentActivity {
     }
 
     private void updateSource(String url) {
+        mOpenedExternally = false;
+        mRestoredChannelUrl = null;
         boolean changed = !Channel.equals(url, mIptvSource.getRoot().url);
         if (changed) {
             resetPlaybackFailures();
@@ -877,6 +895,8 @@ public class TvActivity extends ComponentActivity {
                     return true;
                 }
                 if (item.getGroupId() == MENU_GROUP_PROVIDER) {
+                    mOpenedExternally = false;
+                    mRestoredChannelUrl = null;
                     setChannelProvider(item.getItemId(), true);
                     return true;
                 }
