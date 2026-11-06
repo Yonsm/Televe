@@ -38,7 +38,7 @@
     <string name="channel_sample_rate">采样率</string>
     <string name="channel_audio_channels">声道数</string>
     <string name="channel_language">语言</string>
-    <string name="channel_unknown">未知 / 暂不可用</string>
+    <string name="channel_unknown">未知</string>
     <string name="app_name">电视直播</string>
     <string name="about">关于</string>
     <string name="about_version">版本 %1$s</string>

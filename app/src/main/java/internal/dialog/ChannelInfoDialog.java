@@ -1,16 +1,21 @@
 package internal.dialog;
 
-import android.app.AlertDialog;
+import android.app.Dialog;
 import android.content.Context;
 import android.graphics.Typeface;
+import android.graphics.Color;
+import android.graphics.drawable.ColorDrawable;
 import android.text.SpannableStringBuilder;
 import android.text.Spanned;
 import android.text.TextUtils;
 import android.text.style.StyleSpan;
 import android.view.KeyEvent;
+import android.view.Gravity;
 import android.view.MotionEvent;
 import android.view.View;
 import android.view.ViewGroup;
+import android.view.Window;
+import android.view.WindowManager;
 import android.widget.ScrollView;
 import android.widget.TextView;
 
@@ -21,10 +26,11 @@ import java.util.Locale;
 
 import internal.playlist.Channel;
 import io.library.exo.PlayerView;
+import io.library.widget.DrawerLayout;
 import net.yonsm.televe.R;
 
 @androidx.annotation.OptIn(markerClass = androidx.media3.common.util.UnstableApi.class)
-public class ChannelInfoDialog extends AlertDialog {
+public class ChannelInfoDialog extends Dialog {
     private final PlayerView mPlayer;
     private final String mName;
     private final String mUrl;
@@ -33,22 +39,34 @@ public class ChannelInfoDialog extends AlertDialog {
     private float mTouchDownX;
     private float mTouchDownY;
     private boolean mSwipeToDismiss;
+    private final int mWidth;
+    private boolean mClosing;
 
     public ChannelInfoDialog(Context context, Channel channel, PlayerView player) {
         super(context);
+        requestWindowFeature(Window.FEATURE_NO_TITLE);
         mPlayer = player;
         mName = channel.title;
         mUrl = channel.url;
+        mWidth = Math.min(context.getResources().getDimensionPixelSize(R.dimen.drawer_width),
+                context.getResources().getDisplayMetrics().widthPixels);
         int padding = Math.round(getContext().getResources().getDisplayMetrics().density * 24);
         mText = new TextView(getContext());
         mText.setPadding(padding, padding / 2, padding, padding / 2);
         mText.setTextSize(14);
         mText.setTextIsSelectable(true);
         mScroll = new ScrollView(getContext());
+        mScroll.setBackgroundColor(context.getColor(R.color.drawer_background));
         mScroll.setFocusableInTouchMode(true);
         mScroll.setDescendantFocusability(ViewGroup.FOCUS_BLOCK_DESCENDANTS);
         mScroll.addView(mText);
-        setView(mScroll);
+        setContentView(mScroll);
+        Window window = getWindow();
+        window.setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
+        window.clearFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND);
+        window.setGravity(Gravity.TOP | Gravity.RIGHT);
+        window.setWindowAnimations(0);
+        window.getDecorView().setPadding(0, 0, 0, 0);
         setCanceledOnTouchOutside(true);
         setOnShowListener(dialog -> {
             mRefresh.run();
@@ -58,9 +76,33 @@ public class ChannelInfoDialog extends AlertDialog {
     }
 
     @Override
+    public void show() {
+        mClosing = false;
+        mScroll.setTranslationX(mWidth);
+        super.show();
+        getWindow().setLayout(mWidth, WindowManager.LayoutParams.MATCH_PARENT);
+        DrawerLayout.animatePanel(mScroll, true, true, mWidth, null);
+    }
+
+    @Override
+    public void dismiss() {
+        if (!isShowing() || mClosing) return;
+        mClosing = true;
+        mText.removeCallbacks(mRefresh);
+        DrawerLayout.animatePanel(mScroll, false, true, mWidth, () -> super.dismiss());
+    }
+
+    public void dismissImmediately() {
+        mClosing = false;
+        mText.removeCallbacks(mRefresh);
+        mScroll.animate().withEndAction(null).cancel();
+        super.dismiss();
+    }
+
+    @Override
     public boolean dispatchKeyEvent(KeyEvent event) {
         int key = event.getKeyCode();
-        if (key == KeyEvent.KEYCODE_DPAD_RIGHT || key == KeyEvent.KEYCODE_INFO) {
+        if (key == KeyEvent.KEYCODE_DPAD_LEFT || key == KeyEvent.KEYCODE_DPAD_RIGHT || key == KeyEvent.KEYCODE_INFO) {
             if (event.getAction() == KeyEvent.ACTION_UP && !event.isCanceled()) dismiss();
             return true;
         }
@@ -86,7 +128,8 @@ public class ChannelInfoDialog extends AlertDialog {
         } else if (event.getActionMasked() == MotionEvent.ACTION_UP && mSwipeToDismiss && !mText.hasSelection()) {
             float dx = event.getX() - mTouchDownX;
             float dy = event.getY() - mTouchDownY;
-            if (dx > 40 * getContext().getResources().getDisplayMetrics().density && dx > Math.abs(dy)) {
+            if (Math.abs(dx) > 40 * getContext().getResources().getDisplayMetrics().density
+                    && Math.abs(dx) > Math.abs(dy)) {
                 MotionEvent cancel = MotionEvent.obtain(event);
                 cancel.setAction(MotionEvent.ACTION_CANCEL);
                 super.dispatchTouchEvent(cancel);

@@ -64,6 +64,16 @@ public class MenuAdapter extends BaseAdapter {
 		return mItems.size();
 	}
 
+	@Override
+	public boolean areAllItemsEnabled() {
+		return false;
+	}
+
+	@Override
+	public boolean isEnabled(int position) {
+		return mItems.get(position).isEnabled();
+	}
+
 	public Object getItem(int position) {
 		return mItems.get(position);
 	}

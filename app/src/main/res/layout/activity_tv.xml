@@ -112,15 +112,14 @@
     <!--Don't use RelativeLayout which cause key navigation issue-->
     <LinearLayout
         android:orientation="vertical"
-        android:background="@color/colorPrimary"
+        android:background="@color/drawer_background"
         android:fitsSystemWindows="true"
         android:layout_gravity="left"
         tools:ignore="RtlHardcoded"
         android:layout_width="@dimen/drawer_width"
         android:layout_height="match_parent">
 
-        <LinearLayout
-            android:orientation="horizontal"
+        <FrameLayout
             android:layout_width="match_parent"
             android:layout_height="@dimen/action_button_size">
 
@@ -129,11 +128,10 @@
                 android:background="?android:attr/selectableItemBackground"
                 android:focusable="true"
                 android:gravity="center_vertical"
-                android:layout_width="0dp"
-                android:layout_weight="1"
+                android:layout_width="match_parent"
                 android:layout_height="match_parent"
                 android:paddingStart="8dp"
-                android:paddingEnd="8dp"
+                android:paddingEnd="96dp"
                 android:text="@string/channel_list_loading"
                 android:ellipsize="marquee"
                 android:singleLine="true"
@@ -142,6 +140,7 @@
 
             <TextView
                 android:id="@+id/time"
+                android:layout_gravity="end|center_vertical"
                 android:gravity="end|center_vertical"
                 android:layout_width="wrap_content"
                 android:layout_height="match_parent"
@@ -151,7 +150,7 @@
                 android:textColor="?android:attr/textColorPrimary"
                 android:textSize="14sp"/>
 
-        </LinearLayout>
+        </FrameLayout>
 
         <FrameLayout
             android:layout_width="match_parent"

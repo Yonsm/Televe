@@ -371,13 +371,20 @@ public class ToolMenu extends ArrayList<ToolMenuItem> implements Menu {
 			}
 		});
 
-		final int cxAnchor = anchor.getWidth();
 		final int cyAnchor = anchor.getHeight();
-		if (cxAnchor > size[0])
-			popup.setHorizontalOffset((cxAnchor - size[0]) / 2);
 		if (cyAnchor > size[1])
 			popup.setVerticalOffset(cyAnchor - size[1]);
 		popup.show();
+		popup.getListView().setOnKeyListener((view, key, event) -> {
+			if (!isMenuKey(key)) return false;
+			if (event.getAction() == KeyEvent.ACTION_UP && !event.isCanceled()) popup.dismiss();
+			return true;
+		});
+	}
+
+	public static boolean isMenuKey(int key) {
+		return key == KeyEvent.KEYCODE_MENU || key == KeyEvent.KEYCODE_TV_CONTENTS_MENU
+				|| key == KeyEvent.KEYCODE_TV_MEDIA_CONTEXT_MENU || key == KeyEvent.KEYCODE_MEDIA_TOP_MENU;
 	}
 
 }

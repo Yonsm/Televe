@@ -22,6 +22,7 @@ import android.os.Build;
 import io.library.drawable.DrawerArrowDrawable;
 import android.util.AttributeSet;
 import android.view.Gravity;
+import android.view.KeyEvent;
 import android.view.MenuItem;
 import android.view.MotionEvent;
 import android.view.View;
@@ -51,6 +52,7 @@ public class DrawerLayout extends FrameLayout {
 
 	public interface Listener {
 		default void onDrawerOpening(DrawerLayout layout) {}
+		default boolean onDrawerKeyEvent(KeyEvent event) { return false; }
 		void onDrawerOpened(DrawerLayout layout);
 		void onDrawerClosed(DrawerLayout layout);
 	}
@@ -59,6 +61,8 @@ public class DrawerLayout extends FrameLayout {
 	private ObjectAnimator mDrawerAnimator;
 	private final boolean mUseDrawerWindow;
 	private PopupWindow mDrawerWindow;
+	private boolean mDrawerWindowClosing;
+	private boolean mImmediateDrawerDismiss;
 	private boolean mIndicatorEnabled;
 	private boolean mFirstLayout = true;
 	private int mAnimationDuration;
@@ -89,9 +93,8 @@ public class DrawerLayout extends FrameLayout {
 
 	public DrawerLayout(Context context, AttributeSet attrs, int defStyleAttr) {
 		super(context, attrs, defStyleAttr);
-		// A separate UI window stays above legacy TV hardware video overlays.
+		// Separate windows keep TV navigation above hardware video overlays.
 		mUseDrawerWindow = Build.VERSION.SDK_INT >= Build.VERSION_CODES.N
-				&& Build.VERSION.SDK_INT <= Build.VERSION_CODES.P
 				&& (getResources().getConfiguration().uiMode & Configuration.UI_MODE_TYPE_MASK)
 				== Configuration.UI_MODE_TYPE_TELEVISION;
 		setDescendantFocusability(ViewGroup.FOCUS_AFTER_DESCENDANTS);
@@ -163,6 +166,10 @@ public class DrawerLayout extends FrameLayout {
 
 	public boolean isDrawerOpened() {
 		return mDrawerOpened;
+	}
+
+	public boolean isDrawerVisible() {
+		return mDrawerOpened || mDrawerWindow != null || mDrawerAnimator != null;
 	}
 
 	public void setEdgeSwipeEnabled(boolean enabled) {
@@ -462,7 +469,7 @@ public class DrawerLayout extends FrameLayout {
 			mListener.onDrawerOpening(this);
 		mDrawerOpened = open;
 		if (mUseDrawerWindow && getWindowToken() != null) {
-			moveDrawerWindow(open);
+			moveDrawerWindow(open, duration);
 			return;
 		}
 
@@ -505,8 +512,9 @@ public class DrawerLayout extends FrameLayout {
 		}
 	}
 
-	private void moveDrawerWindow(boolean open) {
+	private void moveDrawerWindow(boolean open, int duration) {
 		if (!open) {
+			mImmediateDrawerDismiss = duration == 0;
 			if (mDrawerWindow != null) mDrawerWindow.dismiss();
 			else {
 				mDrawerView.setTranslationX(-mDrawerSize);
@@ -514,12 +522,42 @@ public class DrawerLayout extends FrameLayout {
 			}
 			return;
 		}
-		if (mDrawerWindow != null) return;
+		if (mDrawerWindow != null) {
+			if (mDrawerWindowClosing) {
+				mDrawerWindowClosing = false;
+				mImmediateDrawerDismiss = false;
+				mDrawerView.animate().withEndAction(null).cancel();
+				mDrawerView.animate().translationX(0).setDuration(duration).setInterpolator(sInterpolator).start();
+				onDrawerStateChanged(true);
+			}
+			return;
+		}
+		mImmediateDrawerDismiss = false;
+		mDrawerWindowClosing = false;
 		final int index = indexOfChild(mDrawerView);
 		final ViewGroup.LayoutParams params = mDrawerView.getLayoutParams();
 		FrameLayout content = new FrameLayout(getContext()) {
 			private float startX;
 			private float startY;
+			private boolean initialFocus = true;
+
+			@Override
+			public void onWindowFocusChanged(boolean hasFocus) {
+				super.onWindowFocusChanged(hasFocus);
+				if (hasFocus && initialFocus) post(() -> {
+					if (isAttachedToWindow() && hasWindowFocus() && mDrawerOpened && !mDrawerWindowClosing) {
+						initialFocus = false;
+						onDrawerStateChanged(true);
+					}
+				});
+			}
+
+			@Override
+			public boolean dispatchKeyEvent(KeyEvent event) {
+				if (mListener != null && mListener.onDrawerKeyEvent(event)) return true;
+				if (mDrawerWindowClosing) return true;
+				return super.dispatchKeyEvent(event);
+			}
 
 			@Override
 			public boolean dispatchTouchEvent(MotionEvent event) {
@@ -535,36 +573,42 @@ public class DrawerLayout extends FrameLayout {
 						cancel.setAction(MotionEvent.ACTION_CANCEL);
 						super.dispatchTouchEvent(cancel);
 						cancel.recycle();
-						closeDrawer(false);
+						closeDrawer(true);
 						return true;
 					}
 				}
 				return super.dispatchTouchEvent(event);
 			}
 
-			@Override
-			public View focusSearch(View focused, int direction) {
-				View next = super.focusSearch(focused, direction);
-				if ((direction == FOCUS_LEFT || direction == FOCUS_RIGHT) && !isOwned(mDrawerView, next)) {
-					post(() -> {
-						if (isAttachedToWindow()) closeDrawer(false);
-					});
-					return focused;
-				}
-				return next;
-			}
 		};
+		content.setFocusableInTouchMode(true);
+		content.requestFocus();
 		removeView(mDrawerView);
 		mDrawerView.setTranslationX(0);
 		mDrawerView.setElevation(0);
 		content.addView(mDrawerView, new FrameLayout.LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT));
-		PopupWindow window = new PopupWindow(content, mDrawerSize, LayoutParams.MATCH_PARENT, true);
+		PopupWindow window = new PopupWindow(content, mDrawerSize, LayoutParams.MATCH_PARENT, true) {
+			@Override
+			public void dismiss() {
+				if (!isShowing()) return;
+				if (mImmediateDrawerDismiss) {
+					mDrawerView.animate().withEndAction(null).cancel();
+					super.dismiss();
+				} else if (!mDrawerWindowClosing) {
+					mDrawerWindowClosing = true;
+					mDrawerOpened = false;
+					animatePanel(mDrawerView, false, false, mDrawerSize, () -> super.dismiss());
+				}
+			}
+		};
 		mDrawerWindow = window;
 		window.setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
 		window.setOutsideTouchable(true);
 		window.setInputMethodMode(PopupWindow.INPUT_METHOD_NOT_NEEDED);
 		window.setAnimationStyle(0);
 		window.setOnDismissListener(() -> {
+			mDrawerWindowClosing = false;
+			mImmediateDrawerDismiss = false;
 			mDrawerWindow = null;
 			mDrawerOpened = false;
 			content.removeView(mDrawerView);
@@ -573,7 +617,16 @@ public class DrawerLayout extends FrameLayout {
 			onDrawerStateChanged(false);
 		});
 		window.showAtLocation(this, Gravity.TOP | Gravity.LEFT, 0, 0);
-		onDrawerStateChanged(true);
+		if (duration > 0) animatePanel(mDrawerView, true, false, mDrawerSize, null);
+	}
+
+	public static void animatePanel(View panel, boolean open, boolean right, int width, Runnable onEnd) {
+		panel.animate().withEndAction(null).cancel();
+		float outside = right ? width : -width;
+		if (open) panel.setTranslationX(outside);
+		panel.animate().translationX(open ? 0 : outside)
+				.setDuration(panel.getResources().getInteger(android.R.integer.config_mediumAnimTime))
+				.setInterpolator(sInterpolator).withEndAction(onEnd).start();
 	}
 
 	protected void onDrawerStateChanged(boolean open) {
