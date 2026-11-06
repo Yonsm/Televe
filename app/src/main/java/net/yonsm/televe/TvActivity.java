@@ -360,7 +360,12 @@ public class TvActivity extends ComponentActivity {
 
     private int pendingChannelIndex() {
         if (mChannelNumber.isEmpty()) return -1;
-        long number = Long.parseLong(mChannelNumber);
+        long number;
+        try {
+            number = Long.parseLong(mChannelNumber);
+        } catch (NumberFormatException error) {
+            return -1;
+        }
         for (int i = 0; i < mChannelList.size(); i++) {
             if (mChannelList.get(i).number == number) return i;
         }

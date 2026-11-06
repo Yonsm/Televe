@@ -6,9 +6,9 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.pm.PackageInfo;
 import android.content.pm.PackageManager;
+import android.content.res.TypedArray;
 import android.graphics.Paint;
 import android.net.Uri;
-import android.os.Build;
 import android.view.Gravity;
 import android.view.ViewGroup;
 import android.widget.ImageView;
@@ -79,13 +79,13 @@ public class AboutDialog extends AlertDialog {
 		linkView.setMinimumHeight(Math.round(density * 48));
 		linkView.setGravity(Gravity.CENTER_VERTICAL);
 		linkView.setFocusable(true);
-		if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O)
-			linkView.setDefaultFocusHighlightEnabled(false);
+		TypedArray background = context.obtainStyledAttributes(new int[]{android.R.attr.selectableItemBackground});
+		linkView.setBackground(background.getDrawable(0));
+		background.recycle();
 		linkView.setOnClickListener(v -> {
 			try {
 				Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse(REPO_URL))
 						.addCategory(Intent.CATEGORY_BROWSABLE);
-				intent.setSelector(new Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_APP_BROWSER));
 				getContext().startActivity(intent);
 			} catch (ActivityNotFoundException | SecurityException error) {
 				Toast.makeText(getContext(), R.string.browser_unavailable, Toast.LENGTH_SHORT).show();
