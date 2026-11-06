@@ -80,7 +80,7 @@ public class SimpleHttpClient extends SimpleBaseClient {
 
     @Override
     protected boolean isSecure(String scheme) {
-        return "https".equals(scheme);
+        return "https".equalsIgnoreCase(scheme);
     }
 
     @Override

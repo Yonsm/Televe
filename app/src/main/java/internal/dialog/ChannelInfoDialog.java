@@ -120,7 +120,8 @@ public class ChannelInfoDialog extends AlertDialog {
         SpannableStringBuilder text = new SpannableStringBuilder();
         section(text, Channel.isEmpty(mName) ? getContext().getString(R.string.channel_unknown) : mName);
         row(text, R.string.channel_url, mUrl);
-        row(text, R.string.channel_buffer, String.format(Locale.getDefault(), "%.1f s", info.bufferedDurationMs / 1000f));
+        row(text, R.string.channel_buffer, info.bufferedDurationMs >= 0
+                ? String.format(Locale.getDefault(), "%.1f s", info.bufferedDurationMs / 1000f) : null);
         if (info.error != null) row(text, R.string.channel_error, info.error.getErrorCodeName());
         section(text, getContext().getString(R.string.channel_video));
         Format video = info.video;

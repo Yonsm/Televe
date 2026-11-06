@@ -48,7 +48,7 @@ public class ClientDataSource extends BaseDataSource implements HttpDataSource {
         }
 
         String scheme = dataSpec.uri.getScheme();
-        mClient = ("rtsp".equals(scheme) || "rtsps".equals(scheme)) ? new SimpleRtspClient() : new SimpleHttpClient();
+        mClient = ("rtsp".equalsIgnoreCase(scheme) || "rtsps".equalsIgnoreCase(scheme)) ? new SimpleRtspClient() : new SimpleHttpClient();
         mDataSpec = dataSpec;
 
         try {
@@ -122,7 +122,9 @@ public class ClientDataSource extends BaseDataSource implements HttpDataSource {
     @Override
     public Uri getUri() {
         SimpleBaseClient client = mClient;
-        return client != null ? Uri.parse(client.getUrl()) : null;
+        if (client == null) return null;
+        String url = client.getUrl();
+        return url != null ? Uri.parse(url) : mDataSpec != null ? mDataSpec.uri : null;
     }
 
     @Override
