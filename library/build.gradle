@@ -29,9 +29,6 @@ android {
         }
     }
 
-    lint {
-        abortOnError false
-    }
 }
 
 dependencies {
@@ -41,7 +38,8 @@ dependencies {
 
     // 媒体播放
     implementation 'androidx.media3:media3-exoplayer:' + project.ext.media3Version
-    implementation 'org.jellyfin.media3:media3-ffmpeg-decoder:1.5.0+1'
+    implementation 'androidx.media3:media3-exoplayer-rtsp:' + project.ext.media3Version
+    implementation 'org.jellyfin.media3:media3-ffmpeg-decoder:1.6.1+2'
     implementation 'androidx.media3:media3-common:' + project.ext.media3Version
     implementation 'androidx.media3:media3-datasource:' + project.ext.media3Version
 
