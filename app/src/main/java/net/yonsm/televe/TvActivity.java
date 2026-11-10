@@ -91,9 +91,10 @@ public class TvActivity extends ComponentActivity {
     private int mInfoPanelWidth;
     private FrameLayout mPanelContainer;
     private ImageView mPanelHint;
+    private ImageView mPinIcon;
     private View mLoadingView;
     private View mBannerContainer;
-    private boolean mPanelClosing;
+    private boolean mPanelPinned, mPanelClosing;
     private PlayerView mPlayerView;
     private TextView mChannelBanner;
     private CharSequence mPendingChannelBanner;
@@ -156,6 +157,15 @@ public class TvActivity extends ComponentActivity {
         FrameLayout.LayoutParams hint = new FrameLayout.LayoutParams((int) (16 * mDensity),
                 getResources().getDimensionPixelSize(R.dimen.navigation_item_height), Gravity.START | Gravity.TOP);
         mPanelContainer.addView(mPanelHint, hint);
+        mPinIcon = new ImageView(this);
+        mPinIcon.setImageResource(R.drawable.ic_panel_menu);
+        mPinIcon.setFocusable(false);
+        mPinIcon.setScaleType(ImageView.ScaleType.CENTER);
+        mPinIcon.setOnClickListener(view -> togglePanelPin());
+        FrameLayout.LayoutParams pin = new FrameLayout.LayoutParams((int) (16 * mDensity),
+                getResources().getDimensionPixelSize(R.dimen.navigation_item_height), Gravity.TOP | Gravity.END);
+        pin.setMarginEnd((int) (2 * mDensity));
+        mPanelContainer.addView(mPinIcon, pin);
         mChannelPanel = new PanelDialog(this, mPanelContainer, false, 0) {
             @Override public void dismiss() { if (!isShowing() || mPanelClosing) return;
                 mPanelClosing = true;
@@ -184,6 +194,8 @@ public class TvActivity extends ComponentActivity {
             });
         });
         mChannelPanel.setOnDismissListener(dialog -> {
+            mPanelPinned = false;
+            mPinIcon.setImageResource(R.drawable.ic_panel_menu);
             mRevealCurrentChannel = false;
             cancelChannelFocus();
             mChannelMenu.stopScroll();
@@ -447,10 +459,17 @@ public class TvActivity extends ComponentActivity {
         if (!ToolMenu.isMenuKey(event.getKeyCode())) return false;
         PanelDialog.noteKeyEvent(event);
         if (event.getAction() == KeyEvent.ACTION_DOWN && event.getRepeatCount() == 0) {
-            if (mChannelPanel.isShowing()) mChannelPanel.dismiss();
+            if (mChannelPanel.isShowing() && mChannelMenu.getVisibility() == View.VISIBLE) {
+                togglePanelPin();
+            } else if (mChannelPanel.isShowing()) mChannelPanel.dismiss();
             else showPanel(0);
         }
         return true;
+    }
+
+    private void togglePanelPin() {
+        mPanelPinned = !mPanelPinned;
+        mPinIcon.setImageResource(mPanelPinned ? R.drawable.ic_panel_pin : R.drawable.ic_panel_menu);
     }
 
     private boolean handleEscapeKey(KeyEvent event) {
@@ -1021,7 +1040,7 @@ public class TvActivity extends ComponentActivity {
                     mChannelPanel.dismiss();
                     new AboutDialog(this).show();
                 } else if (item.getItemId() == R.id.snapshot) {
-                    mChannelPanel.dismiss();
+                    if (!mPanelPinned) mChannelPanel.dismiss();
                     saveSnapshot();
                 } else if (item.getItemId() == R.id.channel_info) {
                     showChannelInfo();
@@ -1097,6 +1116,7 @@ public class TvActivity extends ComponentActivity {
         boolean channels = mPanelMode != 0 && mChannelList.size() != 0;
         mChannelContent.getChildAt(mChannelContent.getChildCount() - 1).setVisibility(channels ? View.VISIBLE : View.GONE);
         mChannelPanel.setPanelWidth((channels ? width : 0) + (mSourceMenu == null ? 0 : menuWidth));
+        mPinIcon.setVisibility(channels ? View.VISIBLE : View.GONE);
         mPanelHint.setVisibility(mPanelMode == 0 || mSourceMenu == null ? View.VISIBLE : View.GONE);
         mPanelHint.setScaleX(mPanelMode == 0 ? 1 : -1);
         ((FrameLayout.LayoutParams) mPanelHint.getLayoutParams()).gravity =
@@ -1161,7 +1181,7 @@ public class TvActivity extends ComponentActivity {
             int position = getBindingAdapterPosition();
             if (position == RecyclerView.NO_POSITION || mLoadingPlaylist && mProviderChanged) return;
             playChannel(position);
-            mChannelPanel.dismiss();
+            if (!mPanelPinned) mChannelPanel.dismiss();
         }
     }
 
@@ -1316,7 +1336,7 @@ public class TvActivity extends ComponentActivity {
                     if (mChannelPanel.isShowing()) {
                         if (!mLongPressed && !mNavigationGesture && PanelDialog.swipeAxis(v.getContext(), dx, dy) == View.SCROLL_AXIS_HORIZONTAL && dx > 0)
                             showProviderMenu();
-                        else if (!mLongPressed && !mTouchMoved) mChannelPanel.dismiss();
+                        else if (!mLongPressed && !mTouchMoved && !mPanelPinned) mChannelPanel.dismiss();
                         return true;
                     }
                     if (mLongPressed || mTouchMoved || Math.max(Math.abs(dx), Math.abs(dy)) > ViewConfiguration.get(v.getContext()).getScaledTouchSlop()) {
@@ -1345,7 +1365,7 @@ public class TvActivity extends ComponentActivity {
     private final Runnable mReplayAction = new Runnable() {
         @Override
         public void run() {
-            if (mChannelPanel.isShowing())
+            if (mChannelPanel.isShowing() && !mPanelPinned)
                 mPlayerView.postDelayed(this, REPLAY_DELAY);
             else if (mChannel != null && !isFinishing())
                 playChannel(mChannel);
