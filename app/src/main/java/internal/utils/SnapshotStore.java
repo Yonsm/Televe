@@ -14,6 +14,8 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
 
+import net.yonsm.televe.R;
+
 public final class SnapshotStore {
     private SnapshotStore() {}
 
@@ -22,7 +24,7 @@ public final class SnapshotStore {
             ContentValues values = new ContentValues();
             values.put(MediaStore.Images.Media.DISPLAY_NAME, name);
             values.put(MediaStore.Images.Media.MIME_TYPE, "image/jpeg");
-            values.put(MediaStore.Images.Media.RELATIVE_PATH, Environment.DIRECTORY_PICTURES + "/Televe");
+            values.put(MediaStore.Images.Media.RELATIVE_PATH, Environment.DIRECTORY_PICTURES + "/" + context.getString(R.string.app_name));
             values.put(MediaStore.Images.Media.IS_PENDING, 1);
             Uri uri = context.getContentResolver().insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values);
             if (uri == null) throw new IOException("Cannot create snapshot");
@@ -40,7 +42,7 @@ public final class SnapshotStore {
                 throw error;
             }
         } else {
-            File directory = new File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_PICTURES), "Televe");
+            File directory = new File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_PICTURES), context.getString(R.string.app_name));
             if (!directory.isDirectory() && !directory.mkdirs()) throw new IOException("Cannot create snapshot directory");
             File file = new File(directory, name);
             try (OutputStream stream = new FileOutputStream(file)) {

@@ -429,10 +429,10 @@ public class TvActivity extends ComponentActivity {
         mToolbar.setTitle(channel.title);
         if (!mResumed) return;
         Uri uri = Uri.parse(channel.url);
-        int sourceType = PlayerView.getFixedSourceType(uri, true);
+        int sourceType = PlayerView.getFixedSourceType(uri);
         mPlayerView.removeCallbacks(mReplayAction);
         mPlaybackStartTime = System.currentTimeMillis();
-        mPlayerView.setUri(this, uri, null, sourceType);
+        mPlayerView.setUri(uri, sourceType);
     }
 
     private void playChannel(int index) {
@@ -502,29 +502,30 @@ public class TvActivity extends ComponentActivity {
         PrefUtils.getStatePref(this).edit().putString(key, value).apply();
     }
 
-    private Bitmap getSnapshotBitmap() {
-        if (mLastState != PlayerView.State.READY)
-            return null;
-
-        Bitmap bitmap = null;
-        try {
-            bitmap = mPlayerView.getBitmap();
-        } catch (Throwable e) {
-            showToast("截图失败！\n" + e.getMessage());
-        }
-        return bitmap;
-    }
-
     private static final int REQUEST_SNAPSHOT_PERMISSION = 1;
 
+    private boolean canSnapshot() {
+        return Build.VERSION.SDK_INT >= Build.VERSION_CODES.N && mResumed && mChannel != null
+                && mLastState == PlayerView.State.READY;
+    }
+
     private void saveSnapshot() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && Build.VERSION.SDK_INT <= Build.VERSION_CODES.P
+        if (!canSnapshot()) return;
+        if (Build.VERSION.SDK_INT <= Build.VERSION_CODES.P
                 && checkSelfPermission(Manifest.permission.WRITE_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED) {
             requestPermissions(new String[]{Manifest.permission.WRITE_EXTERNAL_STORAGE}, REQUEST_SNAPSHOT_PERMISSION);
             return;
         }
-        final Bitmap snapshot = getSnapshotBitmap();
-        if (snapshot == null) return;
+        mPlayerView.captureFrame((snapshot, error) -> {
+            if (error != null) {
+                showToast(getString(R.string.snapshot_failed, error.getMessage()));
+                return;
+            }
+            saveSnapshot(snapshot);
+        });
+    }
+
+    private void saveSnapshot(Bitmap snapshot) {
         final String name = new SimpleDateFormat("yyyy-MM-dd HH-mm-ss", java.util.Locale.US).format(new Date()) + ".jpg";
         AsyncTask.execute(() -> {
             try {
