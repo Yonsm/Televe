@@ -5,10 +5,11 @@ import java.io.DataOutput;
 import java.io.IOException;
 import java.util.Objects;
 
-import io.library.utils.ParcelableObject;
+import android.os.Parcel;
+import android.os.Parcelable;
 
 /** A live channel or a playlist containing channels. */
-public class Channel extends ParcelableObject<Channel> {
+public class Channel implements Parcelable {
     public static final String EXTRA_CHANNEL = "net.yonsm.televe.CHANNEL";
     public static final int NO_ORDER = Integer.MAX_VALUE;
 
@@ -41,7 +42,6 @@ public class Channel extends ParcelableObject<Channel> {
         return channel;
     }
 
-    @Override
     public void writeTo(DataOutput out) throws IOException {
         writeUTF(id, out);
         writeUTF(title, out);
@@ -79,5 +79,40 @@ public class Channel extends ParcelableObject<Channel> {
                 && playlistSource == other.playlistSource && Objects.equals(thumbnail, other.thumbnail);
     }
 
-    public static final Creator<Channel> CREATOR = new ParcelableCreator<>(Channel.class);
+    private static void writeUTF(String value, DataOutput out) throws IOException {
+        out.writeUTF(value != null ? value : "");
+    }
+
+    private Channel(Parcel in) {
+        id = Objects.toString(in.readString(), "");
+        title = Objects.toString(in.readString(), "");
+        url = Objects.toString(in.readString(), "");
+        thumbnail = Objects.toString(in.readString(), "");
+        order = in.readInt();
+        number = in.readLong();
+        playlist = in.readByte() != 0;
+        playlistSource = in.readByte() != 0;
+    }
+
+    @Override
+    public int describeContents() { return 0; }
+
+    @Override
+    public void writeToParcel(Parcel out, int flags) {
+        out.writeString(id);
+        out.writeString(title);
+        out.writeString(url);
+        out.writeString(thumbnail);
+        out.writeInt(order);
+        out.writeLong(number);
+        out.writeByte(playlist ? (byte) 1 : 0);
+        out.writeByte(playlistSource ? (byte) 1 : 0);
+    }
+
+    public static final Creator<Channel> CREATOR = new Creator<Channel>() {
+        @Override
+        public Channel createFromParcel(Parcel in) { return new Channel(in); }
+        @Override
+        public Channel[] newArray(int size) { return new Channel[size]; }
+    };
 }
