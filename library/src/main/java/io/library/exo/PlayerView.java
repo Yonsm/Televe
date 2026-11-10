@@ -14,12 +14,8 @@ import androidx.media3.common.Format;
 import androidx.media3.common.MediaItem;
 import androidx.media3.common.MimeTypes;
 import androidx.media3.common.PlaybackException;
-import androidx.media3.common.PlaybackParameters;
 import androidx.media3.common.Player;
-import androidx.media3.common.TrackGroup;
 import androidx.media3.common.Tracks;
-import androidx.media3.common.TrackSelectionOverride;
-import androidx.media3.common.TrackSelectionParameters;
 import androidx.media3.common.VideoSize;
 import androidx.media3.common.text.Cue;
 import androidx.media3.common.text.CueGroup;
@@ -37,7 +33,6 @@ import androidx.media3.exoplayer.trackselection.DefaultTrackSelector;
 import androidx.media3.exoplayer.trackselection.TrackSelector;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -47,21 +42,6 @@ public class PlayerView extends TextureView implements TextureView.SurfaceTextur
 
     public enum State {
         NONE, IDLE, BUFFERING, READY, ENDED
-    }
-
-    public static class Track {
-        public enum Type {
-            UNKNOWN, AUDIO, VIDEO, SUBTITLE, METADATA
-        }
-
-        public Type type;
-        public String id;
-        public String label;
-        public String language;
-        public String mimeType;
-        public boolean selected;
-        public TrackGroup group;
-        private int index;
     }
 
     public interface EventListener {
@@ -164,18 +144,6 @@ public class PlayerView extends TextureView implements TextureView.SurfaceTextur
         }
     }
 
-    public long getCurrentPosition() {
-        if (mExoPlayer != null)
-            return mExoPlayer.getCurrentPosition();
-        return -1;
-    }
-
-    public long getDuration() {
-        if (mExoPlayer != null)
-            return mExoPlayer.getDuration();
-        return -1;
-    }
-
     public int getVideoWidth() {
         if (mVideoWidth > 0)
             return mVideoWidth;
@@ -196,88 +164,6 @@ public class PlayerView extends TextureView implements TextureView.SurfaceTextur
             mVideoHeight = videoSize.height;
         }
         return mVideoHeight;
-    }
-
-    public boolean isCurrentSeekable() {
-        if (mExoPlayer != null)
-            return mExoPlayer.isCurrentWindowSeekable() && !mExoPlayer.isCurrentWindowDynamic();
-        return false;
-    }
-
-    public boolean getPlayWhenReady() {
-        if (mExoPlayer != null)
-            mPlayWhenReady = mExoPlayer.getPlayWhenReady();
-        return mPlayWhenReady;
-    }
-
-    public void setPlayWhenReady(boolean playWhenReady) {
-        mPlayWhenReady = playWhenReady;
-        if (mExoPlayer != null)
-            mExoPlayer.setPlayWhenReady(mPlayWhenReady);
-    }
-
-    public void getTracks(List<Track> tracks) {
-        tracks.clear();
-        if (mTrackSelector != null && mExoPlayer != null) {
-            // Use Media3 Tracks API (1.4+)
-            Tracks tracksObj = mExoPlayer.getCurrentTracks();
-            if (tracksObj == null) return;
-            for (Tracks.Group trackGroup : tracksObj.getGroups()) {
-                for (int t = 0; t < trackGroup.length; t++) {
-                    Format fmt = trackGroup.getTrackFormat(t);
-                    Track track = new Track();
-                    track.id = fmt.id;
-                    track.language = fmt.language;
-                    track.mimeType = fmt.sampleMimeType;
-                    track.label = fmt.label;
-                    track.index = t;
-                    track.group = trackGroup.getMediaTrackGroup();
-                    track.selected = trackGroup.isTrackSelected(t);
-                    int trackType = trackGroup.getType();
-                    switch (trackType) {
-                        case C.TRACK_TYPE_AUDIO:
-                            track.type = Track.Type.AUDIO;
-                            break;
-                        case C.TRACK_TYPE_VIDEO:
-                            track.type = Track.Type.VIDEO;
-                            break;
-                        case C.TRACK_TYPE_TEXT:
-                            track.type = Track.Type.SUBTITLE;
-                            break;
-                        case C.TRACK_TYPE_METADATA:
-                            track.type = Track.Type.METADATA;
-                            break;
-                        default:
-                            track.type = Track.Type.UNKNOWN;
-                            break;
-                    }
-                    tracks.add(track);
-                }
-            }
-        }
-    }
-
-    public void selectTrack(Track track) {
-        if (mExoPlayer != null && track.group != null) {
-            // Media3 1.4+: 用 TrackSelectionOverride 强制选中指定轨道
-            TrackSelectionOverride override = new TrackSelectionOverride(track.group, track.index);
-            TrackSelectionParameters params = mExoPlayer.getTrackSelectionParameters()
-                    .buildUpon()
-                    .setTrackTypeDisabled(override.getType(), false)
-                    .setOverrideForType(override)
-                    .build();
-            mExoPlayer.setTrackSelectionParameters(params);
-        }
-    }
-
-    public void seekTo(long positionMs) {
-        if (mExoPlayer != null)
-            mExoPlayer.seekTo(positionMs);
-    }
-
-    public void setSpeed(float speed) {
-        if (mExoPlayer != null)
-            mExoPlayer.setPlaybackParameters(new PlaybackParameters(speed, 1));
     }
 
     private void createPlayer() {
@@ -555,17 +441,6 @@ public class PlayerView extends TextureView implements TextureView.SurfaceTextur
             sourceType = C.CONTENT_TYPE_HLS;
         }
         return sourceType;
-    }
-
-    public static String getSubtitleMimeType(String filename) {
-        if (filename == null)
-            return null;
-        String ext = filename.substring(filename.lastIndexOf('.') + 1);
-        if (ext.equalsIgnoreCase("vtt"))
-            return "text/vtt";
-        else if (ext.equalsIgnoreCase("ass") || ext.equalsIgnoreCase("ssa"))
-            return "text/x-ssa";
-        return "application/x-subrip";
     }
 
     public static boolean isWebUri(Uri uri) {
