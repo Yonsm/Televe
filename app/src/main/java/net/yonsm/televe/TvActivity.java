@@ -691,8 +691,15 @@ public class TvActivity extends ComponentActivity {
 
     private void showChannelInfo() {
         cancelChannelNumber();
-        if (mChannel != null && (mChannelInfoDialog == null || !mChannelInfoDialog.isShowing())) {
-            mChannelInfoDialog = new ChannelInfoDialog(this, mChannel, mPlayerView);
+        if (mChannelInfoDialog != null && mChannelInfoDialog.isShowing()) {
+            mChannelInfoDialog.dismiss();
+            return;
+        }
+        if (mChannel != null) {
+            mDrawerLayout.closeDrawer(false);
+            int availableWidth = mDrawerLayout.getWidth();
+            int width = availableWidth < 600 * mDensity ? availableWidth : (int) (378 * mDensity);
+            mChannelInfoDialog = new ChannelInfoDialog(this, mChannel, mPlayerView, width);
             mChannelInfoDialog.show();
         }
     }

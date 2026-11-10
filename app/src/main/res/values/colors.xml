@@ -1,5 +1,7 @@
 <resources>
     <color name="colorPrimary">#FF303030</color>
+    <color name="drawer_background">#B3000000</color>
+    <color name="channel_number">#80FFFFFF</color>
     <color name="colorAccent">#2196F3</color>
     <color name="logo_tv">#FF2196F3</color>
 </resources>

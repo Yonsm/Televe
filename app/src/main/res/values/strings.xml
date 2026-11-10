@@ -1,41 +1,54 @@
 <resources>
-    <string name="channel_number_name">%1$s. %2$s</string>
-    <string name="channel_number_invalid">Channel %1$s is not available</string>
-    <string name="channel_list_empty">No channels available</string>
-    <string name="channel_info">Channel information</string>
     <string name="channel_name">Channel</string>
+    <string name="channel_live">Live</string>
+    <string name="browser_unavailable">No browser available to open this link</string>
+    <string name="aspect_ratio_16_9" translatable="false">16:9</string>
+    <string name="aspect_ratio_4_3" translatable="false">4:3</string>
+    <string name="only_hd">Only HD</string>
+    <string name="source_url_hint">HTTP or HTTPS playlist URL</string>
+    <string name="channel_number_name">%1$s %2$s</string>
+    <string name="channel_number_invalid">Channel %1$s is not available</string>
+    <string name="channel_list_loaded">Channel list refreshed</string>
+    <string name="channel_list_empty">No channels available</string>
+    <string name="channel_playback_failed">Retrying...</string>
+    <string name="snapshot">Snapshot</string>
+    <string name="channel_info">Information</string>
     <string name="channel_url">Stream URL</string>
     <string name="channel_buffer">Buffered</string>
-    <string name="channel_live">Live</string>
-    <string name="channel_error">Playback error</string>
+    <string name="channel_error">Last error</string>
     <string name="channel_video">Video</string>
     <string name="channel_audio">Audio</string>
     <string name="channel_resolution">Resolution</string>
     <string name="channel_frame_rate">Frame rate</string>
-    <string name="channel_color">Color information</string>
-    <string name="channel_mime">Encoding / MIME</string>
-    <string name="channel_codecs">Codec identifier</string>
-    <string name="channel_bitrate">Nominal average bitrate</string>
-    <string name="channel_peak_bitrate">Nominal peak bitrate</string>
+    <string name="channel_color">Color</string>
+    <string name="channel_mime">Encoding</string>
+    <string name="channel_codecs">Codec</string>
+    <string name="channel_bitrate">Bitrate</string>
+    <string name="channel_peak_bitrate">Peak bitrate</string>
     <string name="channel_decoder">Decoder</string>
-    <string name="channel_sample_rate">Sample rate</string>
+    <string name="channel_decode_mode">Decoding</string>
+    <string name="channel_decode_hardware">Hardware</string>
+    <string name="channel_decode_software">Software</string>
+    <string name="channel_decode_support">Capability</string>
+    <string name="channel_decode_supported">Supported</string>
+    <string name="channel_decode_exceeded">Exceeds capability</string>
+    <string name="channel_rendered_frames">Rendered</string>
+    <string name="channel_dropped_frames">Dropped</string>
+    <string name="channel_sample_rate">Sample</string>
     <string name="channel_audio_channels">Channels</string>
     <string name="channel_language">Language</string>
-    <string name="channel_unknown">Unknown / unavailable</string>
+    <string name="channel_unknown">Unknown</string>
     <string name="app_name">Televe</string>
     <string name="about">About</string>
     <string name="about_version">Version %1$s</string>
     <string name="about_message">An IPTV live player for Android phones, tablets and TVs.</string>
-    <string name="browser_unavailable">No browser available to open this link</string>
-    <string name="aspect_ratio">Aspect ratio</string>
-    <string name="aspect_ratio_default">Default</string>
-    <string name="aspect_ratio_16_9" translatable="false">16:9</string>
-    <string name="aspect_ratio_4_3" translatable="false">4:3</string>
-    <string name="only_hd">Only HD</string>
-    <string name="press_again_exit">Press back again to exit</string>
+    <string name="aspect_ratio">Aspect</string>
+    <string name="aspect_ratio_default">Origin</string>
+    <string name="press_again_exit">Back again to exit</string>
     <string name="source">Source</string>
-    <string name="source_url_hint">HTTP or HTTPS playlist URL</string>
-    <string name="source_url_invalid">Enter a valid HTTP or HTTPS playlist URL</string>
+    <string name="source_url_invalid">Enter a valid playlist URL</string>
     <string name="snapshot_saved">Saved snapshot: %1$s</string>
     <string name="snapshot_failed">Snapshot failed: %1$s</string>
+    <string name="channel_info_copied">Channel information copied</string>
+    <string name="channel_decoder_unsupported">Stream exceeds device capabilities</string>
 </resources>
