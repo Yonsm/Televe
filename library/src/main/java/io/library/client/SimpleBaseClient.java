@@ -416,7 +416,7 @@ public abstract class SimpleBaseClient implements Closeable {
                 data.get(buffer, 0, ret);
                 if (ret > 0)
                     outputStream.write(buffer, 0, ret);
-            } while (ret >= 0);
+            } while (data.hasRemaining());
         }
     }
 
