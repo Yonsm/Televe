@@ -10,6 +10,14 @@ public class SimpleHttpClient extends SimpleBaseClient {
 
     public static final String USER_AGENT = "stagefright/1.2 (Linux;Android 9)";
 
+    public static class InvalidResponseException extends IOException {
+        public final Response response;
+        InvalidResponseException(Response response) {
+            super(response.statusLine.toString());
+            this.response = response;
+        }
+    }
+
     public Response open(Request request) throws IOException {
         return open(request, 0);
     }
@@ -32,7 +40,8 @@ public class SimpleHttpClient extends SimpleBaseClient {
             close();
             return open(request, redirects + 1);
         }
-        response.throwIfFailed();
+        if (response.statusLine.code < 200 || response.statusLine.code >= 300)
+            throw new InvalidResponseException(response);
 
         mHasMoreChunks = mChunkTransfer;
         mBytesInChunk = NO_CHUNK_YET;
@@ -80,7 +89,7 @@ public class SimpleHttpClient extends SimpleBaseClient {
 
     @Override
     protected boolean isSecure(String scheme) {
-        return "https".equals(scheme);
+        return "https".equalsIgnoreCase(scheme);
     }
 
     @Override

@@ -19,10 +19,12 @@ import io.library.client.SimpleBaseClient;
 import io.library.client.SimpleHttpClient;
 import io.library.client.SimpleRtspClient;
 
+@androidx.annotation.OptIn(markerClass = androidx.media3.common.util.UnstableApi.class)
 public class ClientDataSource extends BaseDataSource implements HttpDataSource {
     private SimpleBaseClient mClient;
     private DataSpec mDataSpec;
     private long mBytesRemain;
+    private boolean mOpened;
     private SimpleBaseClient.Response mResponse;
     private final RequestProperties mRequestProperties = new RequestProperties();
 
@@ -48,11 +50,14 @@ public class ClientDataSource extends BaseDataSource implements HttpDataSource {
         }
 
         String scheme = dataSpec.uri.getScheme();
-        mClient = ("rtsp".equals(scheme) || "rtsps".equals(scheme)) ? new SimpleRtspClient() : new SimpleHttpClient();
+        mClient = ("rtsp".equalsIgnoreCase(scheme) || "rtsps".equalsIgnoreCase(scheme)) ? new SimpleRtspClient() : new SimpleHttpClient();
         mDataSpec = dataSpec;
+        transferInitializing(dataSpec);
 
         try {
             mResponse = mClient.open(request);
+            mOpened = true;
+            transferStarted(dataSpec);
             long bytesToSkip = mClient instanceof SimpleHttpClient && mResponse.statusLine.code == 200
                     ? dataSpec.position : 0;
             if (bytesToSkip > 0) {
@@ -63,12 +68,17 @@ public class ClientDataSource extends BaseDataSource implements HttpDataSource {
                     int read = mClient.read(buffer, 0, (int) Math.min(buffer.length, remaining));
                     if (read == -1) throw new EOFException("Requested position exceeds response length");
                     remaining -= read;
+                    bytesTransferred(read);
                 }
             }
             long contentLength = mResponse.contentLength > 0 ? mResponse.contentLength - bytesToSkip : C.LENGTH_UNSET;
             mBytesRemain = dataSpec.length == C.LENGTH_UNSET ? contentLength
                     : contentLength == C.LENGTH_UNSET ? dataSpec.length : Math.min(dataSpec.length, contentLength);
             return mBytesRemain;
+        } catch (SimpleHttpClient.InvalidResponseException e) {
+            mResponse = e.response;
+            throw new InvalidResponseCodeException(mResponse.statusLine.code, mResponse.statusLine.description,
+                    e, mResponse.toMultiMap(), dataSpec, new byte[0]);
         } catch (IOException e) {
             throw new HttpDataSourceException(e, dataSpec, HttpDataSourceException.TYPE_OPEN);
         }
@@ -86,8 +96,10 @@ public class ClientDataSource extends BaseDataSource implements HttpDataSource {
             if (mBytesRemain != C.LENGTH_UNSET && readLength > mBytesRemain)
                 readLength = (int) mBytesRemain;
             int bytesRead = client.read(buffer, offset, readLength);
-            if (bytesRead > 0 && mBytesRemain != C.LENGTH_UNSET)
-                mBytesRemain -= bytesRead;
+            if (bytesRead > 0) {
+                if (mBytesRemain != C.LENGTH_UNSET) mBytesRemain -= bytesRead;
+                bytesTransferred(bytesRead);
+            }
             return bytesRead;
         } catch (IOException e) {
             throw new HttpDataSourceException(e, mDataSpec, HttpDataSourceException.TYPE_READ);
@@ -122,7 +134,9 @@ public class ClientDataSource extends BaseDataSource implements HttpDataSource {
     @Override
     public Uri getUri() {
         SimpleBaseClient client = mClient;
-        return client != null ? Uri.parse(client.getUrl()) : null;
+        if (client == null) return null;
+        String url = client.getUrl();
+        return url != null ? Uri.parse(url) : mDataSpec != null ? mDataSpec.uri : null;
     }
 
     @Override
@@ -130,8 +144,14 @@ public class ClientDataSource extends BaseDataSource implements HttpDataSource {
         SimpleBaseClient client = mClient;
         mClient = null;
         mResponse = null;
-        if (client != null)
-            client.close();
+        try {
+            if (client != null) client.close();
+        } finally {
+            if (mOpened) {
+                mOpened = false;
+                transferEnded();
+            }
+        }
     }
 
     public static class DefaultFactory implements DataSource.Factory {
