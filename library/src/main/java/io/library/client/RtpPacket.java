@@ -46,7 +46,7 @@ public final class RtpPacket {
 
     // RTP Payload Format for H.261 Video Streams (RFC 2032)
     public static final int RTCP_PAYLOAD_MIN = 192;
-    public static final int RTCP_PAYLOAD_MAX = 210;
+    public static final int RTCP_PAYLOAD_MAX = 223;
 
     public static int parse(byte[] packet, int length) {
         if((length < RTP_MIN_SIZE) || (length < RTP_HDR_SIZE))
@@ -67,10 +67,8 @@ public final class RtpPacket {
         // Read and check the payload type as describe on RFC 5761 - Multiplexing RTP Data and
         // Control Packets on a Single Port according to Section 4
         int payloadType = packet[1] & 0x7F;
-        if ((payloadType >= RTCP_PAYLOAD_MIN &&
-                payloadType <= RTCP_PAYLOAD_MAX) ||
-                (payloadType+RTP_PAYLOAD_MAX >= RTCP_PAYLOAD_MIN &&
-                        payloadType+RTP_PAYLOAD_MAX <= RTCP_PAYLOAD_MAX)) {
+        int packetType = packet[1] & 0xFF;
+        if (packetType >= RTCP_PAYLOAD_MIN && packetType <= RTCP_PAYLOAD_MAX) {
             return -1;
         }
 
@@ -83,7 +81,8 @@ public final class RtpPacket {
         int backSkip = 0;
 
         if (padding) {
-            int padLen = packet[length - 1];
+            int padLen = packet[length - 1] & 0xFF;
+            if (padLen == 0) return -1;
             backSkip += padLen;
         }
 
@@ -100,7 +99,7 @@ public final class RtpPacket {
 
             frontSkip += extLen;
         }
-        return frontSkip;
+        return frontSkip + backSkip <= length ? frontSkip : -1;
 /*
         boolean marker = ((packet[1] & 0x80) >> 7) == 1;
 

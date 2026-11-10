@@ -53,66 +53,52 @@ public class SimpleRtspClient extends SimpleBaseClient {
     }
 
     public void close() {
-        mCSeq.set(0);
         mBytesInPacket = 0;
         if (mSetup) try {
             sendTeardown();
-            mSetup = false;
         } catch (IOException e) {
             e.printStackTrace();
         }
+        mSetup = false;
         super.close();
+        mCSeq.set(0);
+        mSession = null;
     }
 
     private int mBytesInPacket;
-    private final byte[] mPacketHeader = new byte[RtpPacket.RTP_MAX_HDR_SIZE];
+    private int mPacketOffset;
+    private final byte[] mPacketHeader = new byte[3];
+    private final byte[] mPacket = new byte[65535];
 
     @Override
     public int read(byte[] buffer, int offset, int length) throws IOException {
-        int result = 0;
-        if (mBytesInPacket > 0) {
-            result = readInPacket(buffer, offset, length);
-            if (result == length)
-                return result;
-            offset += result;
-            length -= result;
+        if (length == 0) return 0;
+        while (mBytesInPacket == 0) {
+            do {
+                if (readFully(mInStream, mPacketHeader, 0, 1) != 1) throw new IOException("socket closed");
+            } while (mPacketHeader[0] != '$');
+            if (readFully(mInStream, mPacketHeader) != mPacketHeader.length) throw new IOException("Truncated RTSP frame");
+            int channel = mPacketHeader[0] & 0xff;
+            int packetLength = ((mPacketHeader[1] & 0xff) << 8) | (mPacketHeader[2] & 0xff);
+            if (readFully(mInStream, mPacket, 0, packetLength) != packetLength) throw new IOException("Truncated RTP packet");
+            if ((channel & 1) != 0 || packetLength == 0) continue;
+            int type = packetLength > 1 ? mPacket[1] & 0xff : -1;
+            if (type >= RtpPacket.RTCP_PAYLOAD_MIN && type <= RtpPacket.RTCP_PAYLOAD_MAX) continue;
+            mPacketOffset = RtpPacket.parse(mPacket, packetLength);
+            if (mPacketOffset < 0) throw new IOException("Invalid RTP header");
+            int padding = (mPacket[0] & 0x20) != 0 ? mPacket[packetLength - 1] & 0xff : 0;
+            mBytesInPacket = packetLength - mPacketOffset - padding;
         }
-
-        // Find $ tag
-        do {
-            if (readFully(mInStream, mPacketHeader, 0, 1) != 1)
-                throw new IOException("no more data");
-        } while (mPacketHeader[0] != '$');
-
-        // Read 1 byte channel number and 2 bytes
-        if (readFully(mInStream, mPacketHeader, 0, 3) != 3)
-            throw new IOException("no more data");
-
-        mInStream.mark(mPacketHeader.length);
-        int packetLength = ((mPacketHeader[1] & 0xff) << 8) | (mPacketHeader[2] & 0xff);
-        int bytes = readFully(mInStream, mPacketHeader);
-        if (bytes == -1)
-            throw new IOException("socket closed");
-
-        int payloadOffset = RtpPacket.parse(mPacketHeader, bytes);
-        if (payloadOffset == -1)
-            throw new IOException("no RTP packet");
-
-        mBytesInPacket = packetLength - payloadOffset;
-        mInStream.reset();
-        mInStream.skip(payloadOffset);
-        return result + readInPacket(buffer, offset, length);
-    }
-
-    private int readInPacket(byte[] buffer, int offset, int length) throws IOException {
-        int bytes = readFully(mInStream, buffer, offset, Math.min(mBytesInPacket, length));
+        int bytes = Math.min(mBytesInPacket, length);
+        System.arraycopy(mPacket, mPacketOffset, buffer, offset, bytes);
+        mPacketOffset += bytes;
         mBytesInPacket -= bytes;
         return bytes;
     }
 
     @Override
     protected boolean isSecure(String scheme) {
-        return "rtsps".equals(scheme);
+        return "rtsps".equalsIgnoreCase(scheme);
     }
 
     @Override
