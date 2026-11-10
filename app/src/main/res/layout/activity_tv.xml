@@ -14,6 +14,19 @@
         android:layout_height="match_parent"
         android:layout_gravity="center"/>
 
+    <ImageView
+        android:id="@+id/radio_icon"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="center"
+        android:src="@android:drawable/ic_lock_silent_mode_off"
+        android:scaleType="center"
+        android:tint="#FFFFFF"
+        tools:ignore="UseAppTint"
+        android:importantForAccessibility="no"
+        android:contentDescription="@null"
+        android:visibility="gone"/>
+
     <LinearLayout
         android:id="@+id/banner_container"
         android:layout_width="wrap_content"

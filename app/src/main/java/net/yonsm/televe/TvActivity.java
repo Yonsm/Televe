@@ -98,6 +98,8 @@ public class TvActivity extends ComponentActivity {
     private PlayerView mPlayerView;
     private TextView mChannelBanner;
     private CharSequence mPendingChannelBanner;
+    private View mRadioIcon;
+    private boolean mAudioOnly;
     private int mProviderRequest;
     private int mPendingChannelFocus = -1;
     private boolean mRevealCurrentChannel;
@@ -209,6 +211,7 @@ public class TvActivity extends ComponentActivity {
         mBannerContainer = mRootView.findViewById(R.id.banner_container);
         mLoadingView = mRootView.findViewById(R.id.loading);
         mChannelBanner = mRootView.findViewById(R.id.channel_banner);
+        mRadioIcon = mRootView.findViewById(R.id.radio_icon);
 
         mPlayerView = mRootView.findViewById(R.id.player);
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
@@ -650,6 +653,7 @@ public class TvActivity extends ComponentActivity {
         int sourceType = PlayerView.getFixedSourceType(uri);
         mPlayerView.removeCallbacks(mReplayAction);
         if (!Channel.equals(mPlaybackUrl, channel.url)) {
+            mAudioOnly = false;
             updatePlaybackPresentation();
         }
         mPlaybackUrl = channel.url;
@@ -662,6 +666,7 @@ public class TvActivity extends ComponentActivity {
             mSnapshotItem.setEnabled(canSnapshot());
             mSourceMenu.getAdapter().notifyItemRangeChanged(0, mSourceMenu.getAdapter().getItemCount());
         }
+        mRadioIcon.setVisibility(mAudioOnly ? View.VISIBLE : View.GONE);
     }
 
     private void playChannel(int index) {
@@ -746,7 +751,7 @@ public class TvActivity extends ComponentActivity {
 
     private boolean canSnapshot() {
         return Build.VERSION.SDK_INT >= Build.VERSION_CODES.N && mResumed && mChannel != null
-                && mLastState == PlayerView.State.READY;
+                && !mAudioOnly && mLastState == PlayerView.State.READY;
     }
 
     private void saveSnapshot() {
@@ -983,6 +988,8 @@ public class TvActivity extends ComponentActivity {
             mCurrentFolder = null;
             mChannelList.clear();
             resetPlaybackFailures();
+            mAudioOnly = false;
+            mRadioIcon.setVisibility(View.GONE);
             mChannel = null;
             mPlayerView.removeCallbacks(mReplayAction);
             mPlayerView.stop();
@@ -1272,9 +1279,18 @@ public class TvActivity extends ComponentActivity {
 
         @Override
         public void onFirstFrameRendered() {
+            mAudioOnly = false;
             updatePlaybackPresentation();
             mPlayerView.removeCallbacks(mResetPlaybackFailuresAction);
             mPlayerView.postDelayed(mResetPlaybackFailuresAction, STABLE_PLAYBACK_MS);
+        }
+
+        @Override
+        public void onTracksChanged(Tracks tracks) {
+            if (!tracks.getGroups().isEmpty()) {
+                mAudioOnly = tracks.isTypeSelected(C.TRACK_TYPE_AUDIO) && !tracks.containsType(C.TRACK_TYPE_VIDEO);
+                updatePlaybackPresentation();
+            }
         }
 
         @Override
