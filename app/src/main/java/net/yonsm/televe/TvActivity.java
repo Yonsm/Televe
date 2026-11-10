@@ -132,8 +132,7 @@ public class TvActivity extends ComponentActivity {
             if (event.getActionMasked() == MotionEvent.ACTION_DOWN) cancelChannelFocus();
             return false;
         });
-        mIptvSource = new PlaylistRepository(this,
-                PrefUtils.getConfigPref(this).getString(PrefUtils.CONFIG_PLAYLIST_URL, PlaylistRepository.DEFAULT_URL));
+        mIptvSource = new PlaylistRepository(this);
 
 
         mLoadingView = mDrawerLayout.findViewById(R.id.loading);

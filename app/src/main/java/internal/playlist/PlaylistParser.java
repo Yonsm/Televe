@@ -2,6 +2,8 @@ package internal.playlist;
 
 import java.io.BufferedReader;
 import java.io.InputStream;
+import java.io.IOException;
+import java.net.URI;
 import java.io.InputStreamReader;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -10,10 +12,10 @@ import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-import io.library.net.Request;
+import io.library.net.HttpClient;
 
 /** Reads M3U playlists and comma-separated channel lists. */
-public class PlaylistParser implements Request.Parser<List<Channel>> {
+public class PlaylistParser implements HttpClient.Parser<List<Channel>> {
     private static final String LOGO_BASE = "https://yonsm.github.io/IPTV/LOGO/";
     private static final Pattern ATTRIBUTE = Pattern.compile("([\\w-]+)=(?:\"([^\"]*)\"|([^\\s,]+))");
     private final boolean providers;
@@ -22,7 +24,6 @@ public class PlaylistParser implements Request.Parser<List<Channel>> {
         this.providers = providers;
     }
 
-    @Override
     public List<Channel> onParse(String mimeType, String charset, InputStream stream, boolean fromCache) throws Exception {
         BufferedReader reader = new BufferedReader(new InputStreamReader(stream,
                 Channel.isEmpty(charset) ? "UTF-8" : charset));
@@ -33,6 +34,7 @@ public class PlaylistParser implements Request.Parser<List<Channel>> {
         while ((line = reader.readLine()) != null) {
             line = line.replace("\uFEFF", "").trim();
             if (line.isEmpty()) continue;
+            if (line.startsWith("<")) throw new IOException("Expected a playlist, received markup");
             if (line.startsWith("#EXTM3U")) {
                 m3u = true;
             } else if (line.startsWith("#EXTINF:")) {
@@ -83,6 +85,22 @@ public class PlaylistParser implements Request.Parser<List<Channel>> {
         return result;
     }
 
+    @Override
+    public List<Channel> onParse(String url, String mimeType, String charset, InputStream stream, boolean fromCache) throws Exception {
+        List<Channel> channels = onParse(mimeType, charset, stream, fromCache);
+        URI base = URI.create(url);
+        String document = url.split("[?#]", 2)[0];
+        for (int i = channels.size() - 1; i >= 0; i--) {
+            try {
+                Channel channel = channels.get(i);
+                channel.url = channel.url.startsWith("?") ? document + channel.url : base.resolve(channel.url).toString();
+            } catch (IllegalArgumentException invalid) {
+                channels.remove(i);
+            }
+        }
+        return channels;
+    }
+
     private PendingEntry parseInfo(String info) {
         Channel channel = new Channel();
         Map<String, String> attributes = new HashMap<>();
@@ -90,7 +108,7 @@ public class PlaylistParser implements Request.Parser<List<Channel>> {
         while (matcher.find()) {
             attributes.put(matcher.group(1), matcher.group(2) != null ? matcher.group(2) : matcher.group(3));
         }
-        // Legacy lists place attributes between two commas; standard M3U places them before the first.
+        // Provider lists may place attributes between commas; standard M3U puts them before the first.
         int comma = -1;
         boolean quoted = false;
         for (int i = 0; i < info.length(); i++) {
