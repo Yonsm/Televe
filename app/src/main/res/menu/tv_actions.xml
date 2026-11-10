@@ -6,34 +6,17 @@
         android:title="@string/about" />
 
     <item
-        android:id="@+id/source"
-        android:title="@string/source" />
-
-    <item
-        android:id="@+id/aspect_ratio"
-        android:title="@string/aspect_ratio">
-        <menu>
-            <item
-                android:id="@+id/aspect_ratio_default"
-                android:title="@string/aspect_ratio_default"/>
-
-            <item
-                android:id="@+id/aspect_ratio_16_9"
-                android:title="@string/aspect_ratio_16_9"/>
-
-            <item
-                android:id="@+id/aspect_ratio_4_3"
-                android:title="@string/aspect_ratio_4_3"/>
-        </menu>
-    </item>
-
-    <item
         android:id="@+id/channel_info"
         android:title="@string/channel_info" />
 
+    <item android:id="@+id/snapshot" android:title="@string/snapshot" />
+
     <item
-        android:id="@+id/action_only_hd"
-        android:title="@string/only_hd"
-        android:checkable="true"/>
+        android:id="@+id/aspect_ratio"
+        android:title="@string/aspect_ratio" />
+
+    <item
+        android:id="@+id/source"
+        android:title="@string/source" />
 
 </menu>

@@ -1,99 +1,57 @@
 <?xml version="1.0" encoding="utf-8"?>
-<io.library.widget.DrawerLayout
+<FrameLayout
     xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools"
-    android:id="@+id/drawer_layout"
+    android:id="@+id/player_container"
     android:layout_width="match_parent"
     android:layout_height="match_parent">
 
     <io.library.exo.PlayerView
         android:id="@+id/player"
         android:focusable="true"
+        android:focusableInTouchMode="true"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:layout_gravity="center"/>
 
-    <ProgressBar
-        android:id="@+id/loading"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_gravity="center"
-        style="?android:attr/progressBarStyle"/>
-
-    <TextView
-        android:id="@+id/channel_banner"
+    <LinearLayout
+        android:id="@+id/banner_container"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_gravity="bottom|start"
         android:layout_margin="24dp"
-        android:maxWidth="320dp"
-        android:maxLines="2"
-        android:ellipsize="end"
-        android:padding="12dp"
-        android:background="#C0000000"
-        android:textColor="#FFFFFF"
-        android:textSize="20sp"
-        android:importantForAccessibility="yes"
-        android:accessibilityLiveRegion="polite"
-        android:visibility="gone"/>
+        android:gravity="center_vertical"
+        android:visibility="gone">
 
-    <include layout="@layout/action_toolbar"/>
+        <TextView
+            android:id="@+id/channel_banner"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:maxWidth="320dp"
+            android:maxLines="2"
+            android:ellipsize="end"
+            android:padding="12dp"
+            android:background="#C0000000"
+            android:textColor="#FFFFFF"
+            android:textSize="20sp"
+            android:importantForAccessibility="yes"
+            android:accessibilityLiveRegion="polite"/>
 
-    <!--Don't use RelativeLayout which cause key navigation issue-->
-    <LinearLayout
-        android:orientation="vertical"
-        android:background="#80000000"
-        android:fitsSystemWindows="true"
-        android:layout_gravity="left"
-        tools:ignore="RtlHardcoded"
-        android:layout_width="@dimen/drawer_width"
-        android:layout_height="match_parent">
-
-        <LinearLayout
-            android:orientation="horizontal"
-            android:layout_width="match_parent"
-            android:layout_height="@dimen/action_button_size">
-
-            <TextView
-                android:id="@+id/provider"
-                android:background="?android:attr/selectableItemBackground"
-                android:focusable="true"
-                android:gravity="center_vertical"
-                android:layout_width="wrap_content"
-                android:layout_height="match_parent"
-                android:paddingStart="8dp"
-                android:paddingEnd="8dp"
-                android:ellipsize="marquee"
-                android:singleLine="true"
-                android:textColor="?android:attr/textColorPrimary"
-                android:textSize="14sp"/>
-
-            <Space
-                android:layout_width="0dp"
-                android:layout_height="match_parent"
-                android:layout_weight="1"/>
-
-            <TextView
-                android:id="@+id/time"
-                android:gravity="end|center_vertical"
-                android:layout_width="wrap_content"
-                android:layout_height="match_parent"
-                android:paddingStart="0dp"
-                android:paddingEnd="24dp"
-                android:singleLine="true"
-                android:textColor="?android:attr/textColorPrimary"
-                android:textSize="14sp"/>
-
-        </LinearLayout>
-
-        <androidx.recyclerview.widget.RecyclerView
-            android:id="@+id/channel_menu"
-            android:fadeScrollbars="true"
-            android:layout_width="match_parent"
-            android:layout_height="0dp"
-            android:layout_weight="1"
-            android:scrollbars="vertical"/>
-
+        <ProgressBar
+            android:id="@+id/loading"
+            style="?android:attr/progressBarStyleSmall"
+            android:layout_width="16dp"
+            android:layout_height="16dp"
+            android:layout_marginStart="10dp"
+            android:indeterminateTint="#B3FFFFFF"
+            android:visibility="gone"/>
     </LinearLayout>
 
-</io.library.widget.DrawerLayout>
+    <androidx.recyclerview.widget.RecyclerView
+        android:id="@+id/channel_menu"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:fadeScrollbars="true"
+        android:scrollbars="vertical"/>
+
+</FrameLayout>
