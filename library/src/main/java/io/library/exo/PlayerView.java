@@ -1,6 +1,7 @@
 package io.library.exo;
 
 import android.content.Context;
+import androidx.media3.exoplayer.rtsp.RtspMediaSource;
 import androidx.media3.exoplayer.mediacodec.MediaCodecUtil;
 import androidx.media3.exoplayer.mediacodec.MediaCodecInfo;
 import androidx.media3.exoplayer.DecoderCounters;
@@ -62,6 +63,10 @@ public class PlayerView extends TextureView implements TextureView.SurfaceTextur
     private float mAspectRatio = 0;
     private ExoPlayer mExoPlayer;
     private Surface mSurface;
+    private Uri mCurrentUri;
+    private MediaItem mCurrentMediaItem;
+    private DataSource.Factory mCurrentDataSourceFactory;
+    private boolean mRtspTsFallback;
     private DefaultTrackSelector mTrackSelector;
     private MediaCodecInfo mVideoCodec;
     private PlaybackException mLastPlaybackError;
@@ -175,20 +180,43 @@ public class PlayerView extends TextureView implements TextureView.SurfaceTextur
 
     public void setUri(Context context, Uri uri, Map<String, String> headers, int type, Uri subtitleUri, String subtitleType) {
         if (mExoPlayer != null) {
-            mLastPlaybackError = null;
-            mVideoWidth = 0;
-            mVideoHeight = 0;
-            requestLayout();
-            MediaItem mediaItem = buildMediaItem(uri, type, subtitleUri, subtitleType);
-            // 把按 scheme 选出的 DataSource 工厂(rtsp/http)注入 MediaSource。
-            // 否则 ExoPlayer 退回默认 DataSource 去读 自定义 scheme，无法播放。
-            DataSource.Factory dataSourceFactory = buildSourceFactory(context, uri, headers, null);
-            MediaSource mediaSource = new DefaultMediaSourceFactory(context)
-                    .setDataSourceFactory(dataSourceFactory)
-                    .createMediaSource(mediaItem);
-            mExoPlayer.setMediaSource(mediaSource);
-            mExoPlayer.prepare();
+            if (!uri.equals(mCurrentUri)) {
+                mLastPlaybackError = null;
+                mRtspTsFallback = false;
+            }
+            mCurrentUri = uri;
+            try {
+                mCurrentMediaItem = buildMediaItem(uri, type, subtitleUri, subtitleType);
+                mCurrentDataSourceFactory = buildSourceFactory(context, uri, headers, null);
+                prepareMediaSource();
+            } catch (RuntimeException error) {
+                mExoPlayer.stop();
+                mLastPlaybackError = new PlaybackException("Unsupported media source", error,
+                        PlaybackException.ERROR_CODE_PARSING_CONTAINER_UNSUPPORTED);
+                notifyError(mLastPlaybackError.errorCode, 0, mLastPlaybackError);
+            }
         }
+    }
+
+    private void prepareMediaSource() {
+        MediaSource source = "rtsp".equalsIgnoreCase(mCurrentUri.getScheme()) && !mRtspTsFallback
+                ? new RtspMediaSource.Factory().setForceUseRtpTcp(true).createMediaSource(mCurrentMediaItem)
+                : new DefaultMediaSourceFactory(getContext()).setDataSourceFactory(mCurrentDataSourceFactory)
+                .createMediaSource(mCurrentMediaItem);
+        mExoPlayer.setMediaSource(source);
+        mExoPlayer.prepare();
+    }
+
+    private boolean shouldTryRtspTs(PlaybackException error) {
+        if (mCurrentUri == null || !"rtsp".equalsIgnoreCase(mCurrentUri.getScheme()) || mRtspTsFallback) return false;
+        if (error.errorCode == PlaybackException.ERROR_CODE_PARSING_CONTAINER_UNSUPPORTED
+                || error.errorCode == PlaybackException.ERROR_CODE_PARSING_MANIFEST_UNSUPPORTED) return true;
+        // Media3 filters unsupported SDP payloads such as IPTV's MPEG-TS-over-RTP.
+        for (Throwable cause = error; cause != null; cause = cause.getCause()) {
+            if ("No playable track.".equals(cause.getMessage())
+                    || "Unsupported static paylod type 33".equals(cause.getMessage())) return true;
+        }
+        return false;
     }
 
     public int getVideoWidth() {
@@ -392,6 +420,17 @@ public class PlayerView extends TextureView implements TextureView.SurfaceTextur
 
         @Override
         public void onPlayerError(PlaybackException error) {
+            if (mExoPlayer == null || mExoPlayer.getPlayerError() != error) return;
+            if (shouldTryRtspTs(error)) {
+                mRtspTsFallback = true;
+                try {
+                    prepareMediaSource();
+                    return;
+                } catch (RuntimeException fallbackError) {
+                    error = new PlaybackException("Unsupported RTSP payload", fallbackError,
+                            PlaybackException.ERROR_CODE_PARSING_CONTAINER_UNSUPPORTED);
+                }
+            }
             mLastPlaybackError = error;
             notifyError(error.errorCode, 0, error);
         }
@@ -478,8 +517,9 @@ public class PlayerView extends TextureView implements TextureView.SurfaceTextur
             builder.setMimeType(MimeTypes.APPLICATION_M3U8);
         } else if (type == C.CONTENT_TYPE_DASH) {
             builder.setMimeType(MimeTypes.APPLICATION_MPD);
+        } else if ("rtsp".equalsIgnoreCase(uri.getScheme()) || "rtsps".equalsIgnoreCase(uri.getScheme())) {
+            builder.setMimeType(MimeTypes.VIDEO_MP2T);
         }
-        // RTSP 不设置：由 ClientDataSource 把 RTP over TCP 还原成 TS 交给 Progressive 解析
 
         if (subtitleUri != null) {
             String mime = subtitleType != null ? subtitleType : "text/x-srt";
