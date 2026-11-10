@@ -624,7 +624,7 @@ public class TvActivity extends ComponentActivity {
         if (mChannelInfoDialog != null && !mChannelInfoDialog.isForChannel(channel))
             mChannelInfoDialog.dismiss();
         SharedPreferences pref = PrefUtils.getConfigPref(this);
-        mAspectRatio = pref.getFloat(PrefUtils.TV_ASPECT_RATIO, 16 / 9f);
+        mAspectRatio = pref.getFloat(PrefUtils.TV_ASPECT_RATIO + ":" + channel.url, 16 / 9f);
         mPlayerView.setAspectRatio(mAspectRatio);
         if (!mResumed) return;
         Uri uri = Uri.parse(channel.url);
@@ -663,7 +663,8 @@ public class TvActivity extends ComponentActivity {
 
         SharedPreferences.Editor state = PrefUtils.getStatePref(this).edit()
                 .putString(PrefUtils.STATE_CHANNEL_URL, mChannel.url);
-        if (mCurrentFolder != null) state.putString(PrefUtils.STATE_CHANNEL_SERVER, mCurrentFolder.id);
+        if (mCurrentFolder != null) state.putString(PrefUtils.STATE_CHANNEL_SERVER, mCurrentFolder.id)
+                .putString(PrefUtils.STATE_CHANNEL_URL + ":" + mCurrentFolder.url, mChannel.url);
         state.apply();
     }
 
@@ -781,6 +782,8 @@ public class TvActivity extends ComponentActivity {
         final Channel folder = mCurrentFolder = mProviderList.get(index);
         boolean changed = !Channel.equals(previousFolder, folder);
         mProviderChanged |= previousFolder != null && changed;
+        mRestoredChannelUrl = loadStatusString(PrefUtils.STATE_CHANNEL_URL + ":" + folder.url,
+                previousFolder == null ? mRestoredChannelUrl : null);
         setPlaylistLoading(true);
         saveStatusString(PrefUtils.STATE_CHANNEL_SERVER, folder.id);
 
@@ -1114,7 +1117,7 @@ public class TvActivity extends ComponentActivity {
                             mAspectRatio = ratios[index];
                             mPlayerView.setAspectRatio(mAspectRatio);
                             if (mChannel != null) PrefUtils.getConfigPref(this).edit()
-                                    .putFloat(PrefUtils.TV_ASPECT_RATIO, mAspectRatio).apply();
+                                    .putFloat(PrefUtils.TV_ASPECT_RATIO + ":" + mChannel.url, mAspectRatio).apply();
                             choice.dismiss();
                         })
                 .setOnKeyListener(PanelDialog::closeOnKey).create();
