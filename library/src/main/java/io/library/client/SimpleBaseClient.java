@@ -225,7 +225,6 @@ public abstract class SimpleBaseClient implements Closeable {
 
     protected Response receiveHeaders() throws IOException {
         String line = readUtf8Line(mInStream, mLineBuffer);
-        System.out.println(line);
 
         String protocol = getProtocolVersion();
 //        if (!line.startsWith(protocol))
@@ -241,7 +240,6 @@ public abstract class SimpleBaseClient implements Closeable {
             line = readUtf8Line(mInStream, mLineBuffer);
             if (isEmpty(line))
                 break;
-            System.out.println(line);
 
             int pos = line.indexOf(':');
             if (pos > 0) {
@@ -313,7 +311,6 @@ public abstract class SimpleBaseClient implements Closeable {
     }
 
     protected void send(String message) throws IOException {
-        System.out.println(message);
         mOutStream.write(message.getBytes(UTF8_CHARSET));
         mOutStream.flush();
     }
@@ -412,8 +409,7 @@ public abstract class SimpleBaseClient implements Closeable {
     public static int parseInteger(String value) {
         try {
             return Integer.parseInt(value);
-        } catch (Exception e) {
-            e.printStackTrace();
+        } catch (NumberFormatException ignored) {
         }
         return 0;
     }
@@ -421,8 +417,7 @@ public abstract class SimpleBaseClient implements Closeable {
     public static long parseLong(String value) {
         try {
             return Long.parseLong(value);
-        } catch (Exception e) {
-            e.printStackTrace();
+        } catch (NumberFormatException ignored) {
         }
         return 0;
     }

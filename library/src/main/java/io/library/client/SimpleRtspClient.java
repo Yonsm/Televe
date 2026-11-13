@@ -37,16 +37,14 @@ public class SimpleRtspClient extends SimpleBaseClient {
         }
         response.throwIfFailed();
         if (response.contentLength > 0) {
-            String content = new String(readContent(response));
-            System.out.println(content);
+            readContent(response);
         }
 
         sendSetup();
         response = receiveHeaders();
         response.throwIfFailed();
         if (response.contentLength > 0) {
-            String content = new String(readContent(response));
-            System.out.println(content);
+            readContent(response);
         }
         mSetup = true;
 
@@ -60,8 +58,7 @@ public class SimpleRtspClient extends SimpleBaseClient {
         mBytesInPacket = 0;
         if (mSetup) try {
             sendTeardown();
-        } catch (IOException e) {
-            e.printStackTrace();
+        } catch (IOException ignored) {
         }
         mSetup = false;
         super.close();
