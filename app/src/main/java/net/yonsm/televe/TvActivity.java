@@ -1396,7 +1396,7 @@ public class TvActivity extends ComponentActivity {
     private void requestPlaylist(Channel playlist, boolean providers, boolean refresh, PlaylistResult result) {
         int request = providers ? ++mProviderRequest : ++mChannelRequest;
         int channelRequest = mChannelRequest;
-        mIptvSource.request(playlist, refresh, new PlaylistRepository.Listener() {
+        mIptvSource.request(playlist, providers, refresh, new PlaylistRepository.Listener() {
             private boolean isCurrent() {
                 return !isDestroyed() && request == (providers ? mProviderRequest : mChannelRequest)
                         && (!providers || channelRequest == mChannelRequest);

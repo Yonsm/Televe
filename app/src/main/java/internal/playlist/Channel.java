@@ -17,6 +17,7 @@ public class Channel implements Parcelable {
     public String title = "";
     public String url = "";
     public String thumbnail = "";
+    public String baseUrl = "";
     public int order = NO_ORDER;
     public long number = -1;
     public boolean playlist;
@@ -66,17 +67,18 @@ public class Channel implements Parcelable {
         if (!(other instanceof Channel)) return false;
         Channel channel = (Channel) other;
         return playlist == channel.playlist && Objects.equals(id, channel.id)
-                && Objects.equals(url, channel.url);
+                && Objects.equals(url, channel.url) && (!playlist || Objects.equals(baseUrl, channel.baseUrl));
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(id, url, playlist);
+        return Objects.hash(id, url, playlist, playlist ? baseUrl : null);
     }
 
     public boolean equalsContent(Channel other) {
         return equals(other) && order == other.order && number == other.number && Objects.equals(title, other.title)
-                && playlistSource == other.playlistSource && Objects.equals(thumbnail, other.thumbnail);
+                && playlistSource == other.playlistSource && Objects.equals(thumbnail, other.thumbnail)
+                && Objects.equals(baseUrl, other.baseUrl);
     }
 
     private static void writeUTF(String value, DataOutput out) throws IOException {
@@ -92,6 +94,7 @@ public class Channel implements Parcelable {
         number = in.readLong();
         playlist = in.readByte() != 0;
         playlistSource = in.readByte() != 0;
+        baseUrl = Objects.toString(in.readString(), "");
     }
 
     @Override
@@ -107,6 +110,7 @@ public class Channel implements Parcelable {
         out.writeLong(number);
         out.writeByte(playlist ? (byte) 1 : 0);
         out.writeByte(playlistSource ? (byte) 1 : 0);
+        out.writeString(baseUrl);
     }
 
     public static final Creator<Channel> CREATOR = new Creator<Channel>() {

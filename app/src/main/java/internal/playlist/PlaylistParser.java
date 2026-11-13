@@ -19,29 +19,42 @@ public class PlaylistParser implements HttpClient.Parser<List<Channel>> {
     private static final String LOGO_BASE = "https://yonsm.github.io/IPTV/LOGO/";
     private static final Pattern ATTRIBUTE = Pattern.compile("([\\w-]+)=(?:\"([^\"]*)\"|([^\\s,]+))");
     private final boolean providers;
+    private final String defaultBaseUrl;
 
     public PlaylistParser(boolean providers) {
+        this(providers, null);
+    }
+
+    public PlaylistParser(boolean providers, String baseUrl) {
         this.providers = providers;
+        this.defaultBaseUrl = baseUrl;
     }
 
     public List<Channel> onParse(String mimeType, String charset, InputStream stream, boolean fromCache) throws Exception {
         BufferedReader reader = new BufferedReader(new InputStreamReader(stream,
                 Channel.isEmpty(charset) ? "UTF-8" : charset));
         List<Channel> result = new ArrayList<>();
+        String baseUrl = defaultBaseUrl;
         String line;
-        boolean m3u = false;
+        boolean hasM3uHeader = false;
         PendingEntry pending = null;
         while ((line = reader.readLine()) != null) {
             line = line.replace("\uFEFF", "").trim();
             if (line.isEmpty()) continue;
             if (line.startsWith("<")) throw new IOException("Expected a playlist, received markup");
             if (line.startsWith("#EXTM3U")) {
-                m3u = true;
+                hasM3uHeader = true;
+            } else if (line.startsWith("#BASE:")) {
+                baseUrl = line.substring(6).trim();
             } else if (line.startsWith("#EXTINF:")) {
-                m3u = true;
                 pending = parseInfo(line.substring(8));
             } else if (!line.startsWith("#")) {
-                if (m3u) {
+                int comma = line.indexOf(',');
+                int scheme = line.indexOf("://");
+                int query = line.indexOf('?');
+                if (pending != null || comma < 0 || hasM3uHeader &&
+                        ((scheme >= 0 && scheme < comma) || (query >= 0 && query < comma))) {
+                    if (pending == null && !hasM3uHeader) continue;
                     Channel channel = pending != null ? pending.channel : new Channel();
                     channel.url = line;
                     if (Channel.isEmpty(channel.title)) channel.title = line;
@@ -50,26 +63,27 @@ public class PlaylistParser implements HttpClient.Parser<List<Channel>> {
                         channel.thumbnail = LOGO_BASE + channel.id.replace("-", "").replace("HD", "").trim() + ".jpg";
                     }
                     channel.playlist = providers;
+                    channel.baseUrl = Channel.isEmpty(baseUrl) ? "" : baseUrl;
                     channel.playlistSource = (pending != null && pending.playlist) || isPlaylistUrl(channel.url);
                     result.add(channel);
                     pending = null;
                 } else {
-                    int comma = line.indexOf(',');
                     if (comma <= 0 || comma == line.length() - 1) continue;
                     Channel channel = new Channel();
                     channel.title = line.substring(0, comma).trim();
                     channel.url = line.substring(comma + 1).trim();
-                    if ("#genre#".equals(channel.url)) continue;
+                    if (channel.title.isEmpty() || channel.url.isEmpty() || "#genre#".equals(channel.url)) continue;
                     int dash = channel.title.indexOf('-');
                     if (dash > 0) {
                         int order = parseOrder(channel.title.substring(0, dash));
                         if (order != Channel.NO_ORDER) {
                             channel.order = order;
-                            channel.title = channel.title.substring(dash + 1);
+                            channel.title = channel.title.substring(dash + 1).trim();
                         }
                     }
                     channel.id = channel.title;
                     channel.playlist = providers;
+                    channel.baseUrl = Channel.isEmpty(baseUrl) ? "" : baseUrl;
                     channel.playlistSource = isPlaylistUrl(channel.url);
                     result.add(channel);
                 }
@@ -88,42 +102,58 @@ public class PlaylistParser implements HttpClient.Parser<List<Channel>> {
     @Override
     public List<Channel> onParse(String url, String mimeType, String charset, InputStream stream, boolean fromCache) throws Exception {
         List<Channel> channels = onParse(mimeType, charset, stream, fromCache);
-        URI base = URI.create(url);
-        String document = url.split("[?#]", 2)[0];
         for (int i = channels.size() - 1; i >= 0; i--) {
             try {
                 Channel channel = channels.get(i);
+                String baseUrl = channel.baseUrl;
+                URI base = URI.create(url);
+                boolean template = !Channel.isEmpty(baseUrl) && baseUrl.contains("{}");
+                if (!Channel.isEmpty(baseUrl)) {
+                    String value = template ? baseUrl.replace("{}", "%7B%7D")
+                            : baseUrl.endsWith("/") ? baseUrl : baseUrl + "/";
+                    baseUrl = base.resolve(value).toString().replace("%7B%7D", "{}");
+                    if (providers) channel.baseUrl = baseUrl;
+                    if (!template) base = URI.create(baseUrl);
+                }
+                String document = base.toString().split("[?#]", 2)[0];
+                if (template && !URI.create(channel.url).isAbsolute() && !channel.url.startsWith("//")) {
+                    channel.url = baseUrl.replace("{}", channel.url);
+                }
                 channel.url = channel.url.startsWith("?") ? document + channel.url : base.resolve(channel.url).toString();
+                if (!providers) channel.baseUrl = "";
             } catch (IllegalArgumentException invalid) {
                 channels.remove(i);
             }
         }
+        classifySources(url, channels, providers);
         return channels;
+    }
+
+    static void classifySources(String url, List<Channel> channels, boolean providers) {
+        if (!providers) return;
+        String document = url.split("[?#]", 2)[0].toLowerCase(java.util.Locale.US);
+        boolean namedDirectory = document.endsWith("/lists.m3u8");
+        boolean directory = namedDirectory;
+        for (Channel channel : channels) {
+            channel.playlistSource |= isPlaylistUrl(channel.url);
+            directory |= channel.playlistSource;
+        }
+        if (directory) {
+            for (Channel channel : channels) {
+                channel.playlistSource |= namedDirectory || urlPath(channel.url).endsWith(".m3u8");
+            }
+        }
     }
 
     private PendingEntry parseInfo(String info) {
         Channel channel = new Channel();
         Map<String, String> attributes = new HashMap<>();
-        Matcher matcher = ATTRIBUTE.matcher(info);
+        int comma = info.lastIndexOf(',');
+        Matcher matcher = ATTRIBUTE.matcher(comma < 0 ? info : info.substring(0, comma));
         while (matcher.find()) {
             attributes.put(matcher.group(1), matcher.group(2) != null ? matcher.group(2) : matcher.group(3));
         }
-        // Provider lists may place attributes between commas; standard M3U puts them before the first.
-        int comma = -1;
-        boolean quoted = false;
-        for (int i = 0; i < info.length(); i++) {
-            char c = info.charAt(i);
-            if (c == '"') quoted = !quoted;
-            if (c == ',' && !quoted) { comma = i; break; }
-        }
-        if (comma >= 0) {
-            String title = info.substring(comma + 1).trim();
-            if (ATTRIBUTE.matcher(title).lookingAt()) {
-                int last = title.lastIndexOf(',');
-                if (last >= 0) title = title.substring(last + 1).trim();
-            }
-            channel.title = title;
-        }
+        if (comma >= 0) channel.title = info.substring(comma + 1).trim();
         String first = info.trim().split("[\\s,]", 2)[0];
         channel.order = parseOrder(first);
         channel.id = attributes.get("tvg-name");
@@ -135,13 +165,12 @@ public class PlaylistParser implements HttpClient.Parser<List<Channel>> {
     }
 
     private static boolean isPlaylistUrl(String url) {
-        int end = url.length();
-        int query = url.indexOf('?');
-        int fragment = url.indexOf('#');
-        if (query >= 0) end = query;
-        if (fragment >= 0) end = Math.min(end, fragment);
-        String lower = url.substring(0, end).toLowerCase(java.util.Locale.US);
-        return lower.endsWith(".m3u");
+        String lower = urlPath(url);
+        return lower.endsWith(".m3u") || lower.endsWith(".txt") || lower.endsWith(".csv");
+    }
+
+    private static String urlPath(String url) {
+        return url.split("[?#]", 2)[0].toLowerCase(java.util.Locale.US);
     }
 
     private static final class PendingEntry {

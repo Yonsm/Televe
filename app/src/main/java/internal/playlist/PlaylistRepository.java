@@ -48,12 +48,12 @@ public class PlaylistRepository implements AutoCloseable {
         }
     }
 
-    public boolean isInitializing() {
-        return initialPreferences != null;
-    }
-
     public Channel getRoot() {
         return root;
+    }
+
+    public boolean isInitializing() {
+        return initialPreferences != null;
     }
 
     public synchronized void setRootUrl(String url) {
@@ -63,21 +63,20 @@ public class PlaylistRepository implements AutoCloseable {
         root = channel;
     }
 
-    public void request(Channel playlist, boolean refresh, Listener listener) {
+    public void request(Channel playlist, boolean providers, boolean refresh, Listener listener) {
         if (closed) return;
         final Channel requestedRoot = root;
-        final boolean rootPlaylist = playlist == requestedRoot;
         executor.execute(() -> {
             if (closed || root != requestedRoot) return;
             try {
-                List<Channel> channels = rootPlaylist ? initializeSource(playlist) : null;
+                List<Channel> channels = providers && playlist == requestedRoot ? initializeSource(playlist) : null;
                 fromNetwork = channels != null;
                 if (closed || root != requestedRoot) return;
                 final String url = playlist.url;
-                AtomicFile cache = cacheFile(url);
-                if (channels == null && !refresh) channels = readCache(cache, url);
+                AtomicFile cache = cacheFile(url, playlist.baseUrl);
+                if (channels == null && !refresh) channels = readCache(cache, url, providers);
                 if (channels == null || channels.isEmpty()) {
-                    channels = HttpClient.get(url, new PlaylistParser(rootPlaylist));
+                    channels = HttpClient.get(url, new PlaylistParser(providers, playlist.baseUrl));
                     if (channels.isEmpty()) throw new IOException("Playlist is empty");
                     fromNetwork = true;
                     if (closed || root != requestedRoot) return;
@@ -89,7 +88,7 @@ public class PlaylistRepository implements AutoCloseable {
                 }
             } catch (Exception error) {
                 if (closed || root != requestedRoot) return;
-                List<Channel> cached = readCache(cacheFile(playlist.url), playlist.url);
+                List<Channel> cached = readCache(cacheFile(playlist.url, playlist.baseUrl), playlist.url, providers);
                 if (cached != null && !cached.isEmpty()) {
                     rememberInitialSource(playlist);
                     fromNetwork = false;
@@ -121,7 +120,7 @@ public class PlaylistRepository implements AutoCloseable {
                 if (closed || root != playlist) return null;
                 playlist.id = playlist.title = playlist.url = LOCAL_URL;
                 rememberInitialSource(playlist);
-                writeCache(cacheFile(LOCAL_URL), LOCAL_URL, channels);
+                writeCache(cacheFile(LOCAL_URL, null), LOCAL_URL, channels);
                 return channels;
             }
         } catch (Exception error) {
@@ -138,17 +137,26 @@ public class PlaylistRepository implements AutoCloseable {
         initialPreferences = null;
     }
 
-    private AtomicFile cacheFile(String url) {
-        return new AtomicFile(new File(directory, UUID.nameUUIDFromBytes(url.getBytes(StandardCharsets.UTF_8)).toString()));
+    private AtomicFile cacheFile(String url, String baseUrl) {
+        String key = Channel.isEmpty(baseUrl) ? url : url + "\n" + baseUrl;
+        return new AtomicFile(new File(directory, UUID.nameUUIDFromBytes(key.getBytes(StandardCharsets.UTF_8)).toString()));
     }
 
-    private List<Channel> readCache(AtomicFile file, String url) {
+    private List<Channel> readCache(AtomicFile file, String url, boolean providers) {
         try (DataInputStream input = new DataInputStream(file.openRead())) {
             if (!url.equals(input.readUTF())) return null;
             int count = input.readInt();
             if (count < 0 || count > 100000) return null;
             List<Channel> channels = new ArrayList<>(count);
-            for (int i = 0; i < count; i++) channels.add(new Channel(input));
+            for (int i = 0; i < count; i++) {
+                Channel channel = new Channel(input);
+                channel.playlist = providers;
+                channels.add(channel);
+            }
+            if (input.available() > 0) {
+                for (Channel channel : channels) channel.baseUrl = input.readUTF();
+            }
+            PlaylistParser.classifySources(url, channels, providers);
             return channels;
         } catch (Exception ignored) {
             return null;
@@ -163,6 +171,7 @@ public class PlaylistRepository implements AutoCloseable {
             output.writeUTF(url);
             output.writeInt(channels.size());
             for (Channel channel : channels) channel.writeTo(output);
+            for (Channel channel : channels) output.writeUTF(channel.baseUrl == null ? "" : channel.baseUrl);
             output.flush();
             file.finishWrite(stream);
         } catch (Exception error) {
