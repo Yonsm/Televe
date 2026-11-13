@@ -22,7 +22,7 @@
 
 ## 功能
 
-- 支持 M3U / TXT 频道列表、多来源切换、本地缓存和手动刷新。
+- 支持 M3U / TXT / CSV 列表、地址前缀与模板、多来源切换、本地缓存和手动刷新。
 - 支持遥控器、实体键盘与触屏，提供双列频道、来源同屏和面板固定。
 - 按来源记住频道，按频道记住画面比例；支持数字选台和切台提示。
 - 支持 HLS、DASH、普通 RTSP 与 MPEG-TS-over-RTP 兼容播放；缺少系统音频解码器时使用 FFmpeg 解码 MP2、AC-3 等音频。
@@ -32,17 +32,19 @@
 
 在 **[最新版下载页](https://github.com/Yonsm/Televe/releases/latest)** 的 **Assets** 中下载 APK。支持 Android 6.0（API 23）及以上的手机、平板、电视与电视盒子，包含 ARM 32 / 64 位架构（`armeabi-v7a`、`arm64-v8a`），包名为 `net.yonsm.televe`。
 
+2.1.4 安装包：`Televe_2.1.4_armeabi-v7a.apk` 用于 ARM32，`Televe_2.1.4_arm64-v8a.apk` 用于 ARM64；不确定设备架构时选通用包 `Televe_2.1.4.apk`。
+
 首次安装需允许“安装未知应用”。覆盖升级须使用相同签名；卸载会清除设置与缓存。
 
-1. 首次启动优先探测局域网源 `http://192.168.1.1:84/lists.m3u8`，不可用时使用[默认源](https://yonsm.github.io/IPTV/lists.m3u8)。后续启动恢复上次来源及其频道，频道已移除时播放首项。
+1. 首次启动优先探测局域网源 `http://192.168.1.1:84/lists.m3u`，不可用时使用[默认源](https://yonsm.github.io/IPTV/lists.m3u8)。后续启动恢复上次来源及其频道，频道已移除时播放首项。
 2. 按 **OK** 或点击画面打开频道列表，选择频道观看。
-3. 按 **←** 或向右滑动打开来源与频道同屏面板，在“播放来源”中输入 HTTP(S) 列表地址；留空恢复默认源。
+3. 按 **←** 或向右滑动打开来源与频道同屏面板，在“播放来源”中输入 HTTP(S) 列表地址；省略协议时补全 `http://`，留空恢复默认源。
 
 IPTV 源在 [Yonsm/IPTV](https://github.com/Yonsm/IPTV/) 维护。播放是否可用取决于来源与网络环境，请仅使用可信且有权访问的来源。
 
 ## 操作指南
 
-确认键：遥控器 **OK**；键盘 **Enter**（含小键盘）或**空格**。菜单键：**Menu / Contents Menu**，键盘 **F10 / ContextMenu**；系统拦截的按键除外。下表中的画面包含黑边。
+确认键：遥控器 **OK**；键盘 **Enter**（含小键盘）或**空格**。菜单键：**Menu / Contents Menu**，键盘 **F10 / ContextMenu**。
 
 | 操作动作 | 遥控器 | 实体键盘 | 触摸屏幕 |
 | --- | --- | --- | --- |
@@ -81,9 +83,9 @@ IPTV 源在 [Yonsm/IPTV](https://github.com/Yonsm/IPTV/) 维护。播放是否�
 
 启动、换源优先读缓存，缺失或无效才联网。重选已加载来源只定位频道；换源恢复上次频道，无记录或频道已移除时播放首项。
 
-确认来源地址刷新目录与当前来源的频道，其他来源缓存保留；直接频道列表只下载一次，同一请求不重复提交。换台、返回前台不会刷新列表，也不定时刷新。联网加载频道成功时提示完成。
+确认来源地址先刷新来源目录，成功后关闭编辑框，再单独刷新当前来源的频道；直接频道列表只下载一次。来源与频道联网加载成功时分别提示完成。频道刷新成功后清理其他频道缓存，后续切换来源时重新获取。换台、返回前台不会刷新列表，也不定时刷新。
 
-更新失败或空列表保留有效缓存；无缓存时，目录失败进入地址编辑，频道失败进入来源菜单，可重选或改地址重试。旧请求不覆盖新选择。首次初始化未成功时重试仍探测局域网，成功或手工设置地址后记住选择。
+更新失败或空列表保留有效缓存；编辑地址刷新失败时保留输入与编辑框，不替换原来源。频道加载失败时优先使用缓存，无缓存则进入来源菜单重试。取消刷新或重新选择后，过期排队请求跳过，已发出的过期请求结果丢弃。首次初始化未成功时重试仍探测局域网，成功或手工设置地址后记住选择。
 
 短暂缓冲不闪加载图标；连续播放失败只提示一次，重试间隔逐步延长，稳定播放后重置。超出设备解码能力时提示并停止自动重试。
 
@@ -97,7 +99,7 @@ IPTV 源在 [Yonsm/IPTV](https://github.com/Yonsm/IPTV/) 维护。播放是否�
 
 ## 播放源格式
 
-两类 M3U 列表均以 `#EXTM3U` 开头，每项由 `#EXTINF` 和下一行地址组成。支持相对地址，以重定向后的最终列表地址为基准。
+来源目录和频道列表均支持 `名称,地址` 单行格式与 `#EXTINF` 加下一行地址的双行格式，可以混用；M3U 通常以 `#EXTM3U` 开头。支持相对地址，默认以重定向后的最终列表地址为基准。
 
 ### 来源目录（lists）
 
@@ -109,7 +111,9 @@ IPTV 源在 [Yonsm/IPTV](https://github.com/Yonsm/IPTV/) 维护。播放是否�
 https://yonsm.github.io/IPTV/hangzhou/unicom.m3u8
 ```
 
-`server-id` 标记来源并提供标识，不用于拼接播放地址。未标记时，仅 `.m3u` 链接自动识别为来源，`.m3u8` 或无扩展名的列表需显式标记；目录不要混入直播条目。
+在 `lists.m3u8` 中也可简写为 `杭州联通,https://yonsm.github.io/IPTV/hangzhou/unicom.m3u8`。
+
+`server-id` 标记来源并提供标识，不用于拼接播放地址。`.m3u`、`.txt`、`.csv` 链接自动识别为来源；根地址路径以 `/lists.m3u8` 结尾时，所有条目按来源处理。其他目录中已有明确来源时，`.m3u8` 链接也按来源处理；否则 `.m3u8` 和无扩展名的来源需用 `server-id` 标记。目录不要混入直播条目。
 
 ### 频道列表
 
@@ -121,12 +125,34 @@ https://yonsm.github.io/IPTV/hangzhou/unicom.m3u8
 http://124.90.44.40:6060/010/2/00000001000000060000000000000469?virtualDomain=010.live_hls.zte.com
 ```
 
-- 支持 `#EXTINF:编号 属性,名称` 和示例中的 `#EXTINF:编号,属性,名称`；后者取末个逗号后的文字为显示名。
+- 支持 `#EXTINF:编号 属性,名称` 和示例中的 `#EXTINF:编号,属性,名称`；均取末个逗号后的文字为显示名，名称不要包含逗号。
 - `tvg-name` 用作标识，其次取 `server-id`、`tvg-id`、显示名；`group-title` 是上游分组名，当前忽略，不生成分组或影响排序。
 - 首字段为 0–999 整数且不小于前号时用作频道号，否则取前号加 1；首项默认 1，也可指定 0。按原顺序编号后排序，同号按名称排序，数字选台取首个匹配。自动编号可超过 999，超过三位时从列表选择。
-- TXT 使用 `10-新闻,http://example.com/live`，编号规则相同；`分组名,#genre#` 分组头忽略。
+- TXT / CSV 使用 `10-新闻,http://example.com/live`，编号规则相同；`分组名,#genre#` 分组头忽略。这里的 CSV 为简单逗号分隔，不支持带引号的字段转义。
 
 标准 M3U 的首字段原为时长，此规则无法完全区分整数时长与频道号。普通频道地址可为 `.m3u8`，不会仅凭该后缀当作来源目录。
+
+### 地址前缀与模板
+
+`#BASE:` 从所在行开始应用到后续条目，可多次设置。普通 Base 按目录处理，绝对条目地址保持不变：
+
+```text
+#BASE:http://example.com/live/
+1-综合,cctv1.m3u8
+2-财经,cctv2.m3u8
+```
+
+以上地址分别解析为 `http://example.com/live/cctv1.m3u8` 和 `http://example.com/live/cctv2.m3u8`。Base 也可相对于当前列表地址指定。
+
+Base 包含 `{}` 时，将条目的相对地址代入模板：
+
+```text
+#BASE:http://example.com/play?id={}
+1-综合,cctv1
+2-财经,cctv2
+```
+
+来源目录中的 Base 同时传给对应频道列表，频道列表自己的 `#BASE:` 可覆盖继承值。来源地址为绝对 URL 时仍继承 Base，供列表中的频道使用；同一频道列表配不同 Base 时分别缓存。
 
 ### 连接与兼容性
 
@@ -138,7 +164,7 @@ http://124.90.44.40:6060/010/2/00000001000000060000000000000469?virtualDomain=01
 
 ## 构建
 
-当前源码为 **2.1.3（versionCode 5）**，最低 SDK 23，编译及目标 SDK 36。仓库包含完整源码与 Gradle Wrapper，`app/` 负责应用界面、频道及截图，`library/` 负责播放器、网络与界面工具。
+当前源码为 **2.1.4（versionCode 6）**，最低 SDK 23，编译及目标 SDK 36。应用信息显示版本号及北京时间 `MMddHHmm` 构建标识。仓库包含完整源码与 Gradle Wrapper，`app/` 负责应用界面、频道及截图，`library/` 负责播放器、网络与界面工具。
 
 使用兼容 Android Gradle Plugin 的 JDK 和 Android SDK 36。用 Android Studio 打开仓库，或在不纳入版本管理的 `local.properties` 配置 SDK 与签名：
 
@@ -153,11 +179,14 @@ RELEASE_KEY_PASSWORD=your-key-password
 ```sh
 ./gradlew :app:assembleRelease
 ./gradlew :app:assembleDebug
+./gradlew :app:bundleRelease
 ./gradlew :app:testDebugUnitTest
-adb install -r app/build/outputs/apk/release/Televe.apk
+adb install -r app/build/outputs/apk/release/Televe_2.1.4.apk
 ```
 
-Release 构建检查签名并执行 lint，启用代码混淆与资源裁剪；产物为 `app/build/outputs/apk/release/Televe.apk`。
+Release 构建检查签名并执行 lint，启用代码混淆与资源裁剪。`assembleRelease` 在 `app/build/outputs/apk/release/` 生成 ARM32、ARM64 与通用 APK；`bundleRelease` 生成 `app/build/outputs/bundle/release/app-release.aab`，AAB 由分发平台按设备拆分。需要两种产物时分别执行这两个命令。
+
+Debug 在签名配置完整时使用同一证书，否则使用默认调试证书；签名不同的安装包不能直接覆盖。
 
 ## 更新与授权
 
