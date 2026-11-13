@@ -18,7 +18,7 @@ public class AboutDialog extends AlertDialog {
         setTitle(R.string.about);
         setIcon(R.mipmap.ic_launcher_tv);
         setMessage(context.getString(R.string.app_name) + "\n"
-                + context.getString(R.string.about_version, BuildConfig.VERSION_NAME)
+                + context.getString(R.string.about_version, BuildConfig.VERSION_NAME + "." + BuildConfig.BUILD_TIME)
                 + "\n\n" + context.getString(R.string.about_message));
         setButton(BUTTON_POSITIVE, WEB_URL, (dialog, which) -> {
             try {
