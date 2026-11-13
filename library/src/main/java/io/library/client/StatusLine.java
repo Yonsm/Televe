@@ -1,60 +1,72 @@
 package io.library.client;
 
-public enum StatusLine {
+public final class StatusLine {
 
-    SWITCH_PROTOCOL(101, "Switching Protocols"),
+    public static final StatusLine SWITCH_PROTOCOL = new StatusLine(101, "Switching Protocols");
 
-    OK(200, "OK"),
-    CREATED(201, "Created"),
-    ACCEPTED(202, "Accepted"),
-    NO_CONTENT(204, "No Content"),
-    PARTIAL_CONTENT(206, "Partial Content"),
-    MULTI_STATUS(207, "Multi-Status"),
+    public static final StatusLine OK = new StatusLine(200, "OK");
+    public static final StatusLine CREATED = new StatusLine(201, "Created");
+    public static final StatusLine ACCEPTED = new StatusLine(202, "Accepted");
+    public static final StatusLine NO_CONTENT = new StatusLine(204, "No Content");
+    public static final StatusLine PARTIAL_CONTENT = new StatusLine(206, "Partial Content");
+    public static final StatusLine MULTI_STATUS = new StatusLine(207, "Multi-Status");
 
-    MOVED_PERMANENTLY(301, "Moved Permanently"),
-    MOVED_TEMPORARILY(302, "Moved Temporarily"),
-    REDIRECT_SEE_OTHER(303, "See Other"),
-    NOT_MODIFIED(304, "Not Modified"),
-    TEMPORARY_REDIRECT(307, "Temporary Redirect"),
-    PERMANENT_REDIRECT(308, "Permanent Redirect"),
+    public static final StatusLine MOVED_PERMANENTLY = new StatusLine(301, "Moved Permanently");
+    public static final StatusLine MOVED_TEMPORARILY = new StatusLine(302, "Moved Temporarily");
+    public static final StatusLine REDIRECT_SEE_OTHER = new StatusLine(303, "See Other");
+    public static final StatusLine NOT_MODIFIED = new StatusLine(304, "Not Modified");
+    public static final StatusLine TEMPORARY_REDIRECT = new StatusLine(307, "Temporary Redirect");
+    public static final StatusLine PERMANENT_REDIRECT = new StatusLine(308, "Permanent Redirect");
 
-    BAD_REQUEST(400, "Bad Request"),
-    UNAUTHORIZED(401, "Unauthorized"),
-    FORBIDDEN(403, "Forbidden"),
-    NOT_FOUND(404, "Not Found"),
-    METHOD_NOT_ALLOWED(405, "Method Not Allowed"),
-    NOT_ACCEPTABLE(406, "Not Acceptable"),
-    REQUEST_TIMEOUT(408, "Request Timeout"),
-    CONFLICT(409, "Conflict"),
-    GONE(410, "Gone"),
-    LENGTH_REQUIRED(411, "Length Required"),
-    PRECONDITION_FAILED(412, "Precondition Failed"),
-    PAYLOAD_TOO_LARGE(413, "Payload Too Large"),
-    UNSUPPORTED_MEDIA_TYPE(415, "Unsupported Media Type"),
-    RANGE_NOT_SATISFIABLE(416, "Requested Range Not Satisfiable"),
-    EXPECTATION_FAILED(417, "Expectation Failed"),
-    TOO_MANY_REQUESTS(429, "Too Many Requests"),
+    public static final StatusLine BAD_REQUEST = new StatusLine(400, "Bad Request");
+    public static final StatusLine UNAUTHORIZED = new StatusLine(401, "Unauthorized");
+    public static final StatusLine FORBIDDEN = new StatusLine(403, "Forbidden");
+    public static final StatusLine NOT_FOUND = new StatusLine(404, "Not Found");
+    public static final StatusLine METHOD_NOT_ALLOWED = new StatusLine(405, "Method Not Allowed");
+    public static final StatusLine NOT_ACCEPTABLE = new StatusLine(406, "Not Acceptable");
+    public static final StatusLine REQUEST_TIMEOUT = new StatusLine(408, "Request Timeout");
+    public static final StatusLine CONFLICT = new StatusLine(409, "Conflict");
+    public static final StatusLine GONE = new StatusLine(410, "Gone");
+    public static final StatusLine LENGTH_REQUIRED = new StatusLine(411, "Length Required");
+    public static final StatusLine PRECONDITION_FAILED = new StatusLine(412, "Precondition Failed");
+    public static final StatusLine PAYLOAD_TOO_LARGE = new StatusLine(413, "Payload Too Large");
+    public static final StatusLine UNSUPPORTED_MEDIA_TYPE = new StatusLine(415, "Unsupported Media Type");
+    public static final StatusLine RANGE_NOT_SATISFIABLE = new StatusLine(416, "Requested Range Not Satisfiable");
+    public static final StatusLine EXPECTATION_FAILED = new StatusLine(417, "Expectation Failed");
+    public static final StatusLine TOO_MANY_REQUESTS = new StatusLine(429, "Too Many Requests");
 
-    INTERNAL_ERROR(500, "Internal Server Error"),
-    NOT_IMPLEMENTED(501, "Not Implemented"),
-    SERVICE_UNAVAILABLE(503, "Service Unavailable"),
-    UNSUPPORTED_HTTP_VERSION(505, "HTTP Version Not Supported");
+    public static final StatusLine INTERNAL_ERROR = new StatusLine(500, "Internal Server Error");
+    public static final StatusLine NOT_IMPLEMENTED = new StatusLine(501, "Not Implemented");
+    public static final StatusLine BAD_GATEWAY = new StatusLine(502, "Bad Gateway");
+    public static final StatusLine SERVICE_UNAVAILABLE = new StatusLine(503, "Service Unavailable");
+    public static final StatusLine GATEWAY_TIMEOUT = new StatusLine(504, "Gateway Timeout");
+    public static final StatusLine UNSUPPORTED_HTTP_VERSION = new StatusLine(505, "HTTP Version Not Supported");
+
+    private static final StatusLine[] KNOWN = {
+            SWITCH_PROTOCOL,
+            OK, CREATED, ACCEPTED, NO_CONTENT, PARTIAL_CONTENT, MULTI_STATUS,
+            MOVED_PERMANENTLY, MOVED_TEMPORARILY, REDIRECT_SEE_OTHER, NOT_MODIFIED, TEMPORARY_REDIRECT, PERMANENT_REDIRECT,
+            BAD_REQUEST, UNAUTHORIZED, FORBIDDEN, NOT_FOUND, METHOD_NOT_ALLOWED, NOT_ACCEPTABLE, REQUEST_TIMEOUT,
+            CONFLICT, GONE, LENGTH_REQUIRED, PRECONDITION_FAILED, PAYLOAD_TOO_LARGE, UNSUPPORTED_MEDIA_TYPE,
+            RANGE_NOT_SATISFIABLE, EXPECTATION_FAILED, TOO_MANY_REQUESTS,
+            INTERNAL_ERROR, NOT_IMPLEMENTED, BAD_GATEWAY, SERVICE_UNAVAILABLE, GATEWAY_TIMEOUT, UNSUPPORTED_HTTP_VERSION
+    };
 
     public final int code;
     public final String description;
 
-    StatusLine(int code, String description) {
+    public StatusLine(int code, String description) {
         this.code = code;
         this.description = description;
     }
 
     @Override
     public String toString() {
-        return Integer.toString(this.code) + ' ' + this.description;
+        return description.isEmpty() ? Integer.toString(code) : Integer.toString(code) + ' ' + description;
     }
 
     public static StatusLine lookup(int code) {
-        for (StatusLine status : StatusLine.values()) {
+        for (StatusLine status : KNOWN) {
             if (status.code == code) {
                 return status;
             }
@@ -63,9 +75,18 @@ public enum StatusLine {
     }
 
     public static StatusLine parse(String line) {
+        if (line == null || line.isEmpty()) return null;
         int end = line.indexOf(' ');
-        if (end < 0)
-            end = line.length();
-        return lookup(Integer.parseInt(line.substring(0, end)));
+        String codeText = end < 0 ? line : line.substring(0, end);
+        String description = end < 0 ? "" : line.substring(end + 1).trim();
+        int code;
+        try {
+            code = Integer.parseInt(codeText);
+        } catch (NumberFormatException ignored) {
+            return null;
+        }
+        if (code < 100 || code > 999) return null;
+        StatusLine status = lookup(code);
+        return status != null ? status : new StatusLine(code, description);
     }
 }

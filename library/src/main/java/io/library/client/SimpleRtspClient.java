@@ -27,7 +27,11 @@ public class SimpleRtspClient extends SimpleBaseClient {
             String location = findLocationOrThrow(response);
             if (redirects >= 5) // 防止源站重定向成环导致递归溢出
                 throw new IOException("Too many redirects: " + request.url);
-            request.url = URI.create(request.url).resolve(location).toString();
+            try {
+                request.url = URI.create(request.url).resolve(location).toString();
+            } catch (IllegalArgumentException error) {
+                throw new IOException("Invalid redirect location: " + location, error);
+            }
             close();
             return open(request, redirects + 1);
         }

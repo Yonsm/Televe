@@ -12,6 +12,7 @@ import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.Socket;
 import java.net.URI;
+import java.net.URL;
 import java.nio.ByteBuffer;
 import java.nio.charset.Charset;
 import java.util.Collections;
@@ -127,6 +128,8 @@ public abstract class SimpleBaseClient implements Closeable {
     protected BufferedOutputStream mOutStream;
     protected Request mRequest;
     protected URI mUri;
+    protected String mHost;
+    protected int mPort = -1;
     protected final byte[] mLineBuffer = new byte[BUFFER_SIZE];
 
     public abstract Response open(Request request) throws IOException;
@@ -144,15 +147,30 @@ public abstract class SimpleBaseClient implements Closeable {
     }
 
     public URI connect(Request request) throws IOException {
-        URI uri = URI.create(request.url);
+        URI uri;
+        try {
+            uri = URI.create(request.url);
+        } catch (IllegalArgumentException error) {
+            throw new IOException("Invalid URI: " + request.url, error);
+        }
         String scheme = uri.getScheme();
-        int port = uri.getPort();
-        if (port == -1)
-            port = getDefaultPort(scheme);
+        String host = uri.getHost();
+        int uriPort = uri.getPort();
+        if (host == null && uri.getRawAuthority() != null) {
+            // URL supplies lenient authority parsing even for RTSP addresses.
+            URL parsedUrl = new URL("http://" + uri.getRawAuthority());
+            host = parsedUrl.getHost();
+            uriPort = parsedUrl.getPort();
+        }
+        if (isEmpty(host))
+            throw new IOException("Invalid host: " + request.url);
+        int port = uriPort != -1 ? uriPort : getDefaultPort(scheme);
+        if (port < 0 || port > 65535)
+            throw new IOException("Invalid port: " + request.url);
 
         SocketFactory factory = isSecure(scheme) ? getInsecureSSLSocketFactory() : SocketFactory.getDefault();
         IOException lastError = null;
-        InetAddress[] addresses = InetAddress.getAllByName(uri.getHost());
+        InetAddress[] addresses = InetAddress.getAllByName(host);
         for (int family = 0; family < 2 && mSocket == null; family++) {
             boolean ipv6 = family == 0;
             for (InetAddress address : addresses) {
@@ -173,11 +191,13 @@ public abstract class SimpleBaseClient implements Closeable {
             }
         }
         if (mSocket == null)
-            throw lastError;
+            throw lastError != null ? lastError : new IOException("Cannot connect to " + host);
         mInStream = new BufferedInputStream(mSocket.getInputStream(), BUFFER_SIZE);
         mOutStream = new BufferedOutputStream(mSocket.getOutputStream(), BUFFER_SIZE);
         mRequest = request;
         mUri = uri;
+        mHost = host;
+        mPort = uriPort;
         return uri;
     }
 
@@ -187,6 +207,8 @@ public abstract class SimpleBaseClient implements Closeable {
         mInStream = null;
         mOutStream = null;
         mSocket = null;
+        mHost = null;
+        mPort = -1;
     }
 
     public int read(byte[] buffer, int offset, int length) throws IOException {
