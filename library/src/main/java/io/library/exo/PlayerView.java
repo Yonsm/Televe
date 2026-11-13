@@ -182,6 +182,8 @@ public class PlayerView extends FrameLayout {
         mShutterView.setVisibility(VISIBLE);
         if (mExoPlayer != null) {
             if (!uri.equals(mCurrentUri)) {
+                mVideoWidth = 0;
+                mVideoHeight = 0;
                 mLastPlaybackError = null;
                 mRtspTsFallback = false;
             }
@@ -289,6 +291,8 @@ public class PlayerView extends FrameLayout {
             mExoPlayer.release();
             mExoPlayer = null;
         }
+        mVideoWidth = 0;
+        mVideoHeight = 0;
         mVideoDecoder = null;
         mVideoCodec = null;
         mAudioDecoder = null;

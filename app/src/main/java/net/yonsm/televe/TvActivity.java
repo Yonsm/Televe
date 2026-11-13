@@ -166,7 +166,7 @@ public class TvActivity extends ComponentActivity {
         mPinIcon.setOnClickListener(view -> togglePanelPin());
         FrameLayout.LayoutParams pin = new FrameLayout.LayoutParams((int) (16 * mDensity),
                 getResources().getDimensionPixelSize(R.dimen.navigation_item_height), Gravity.TOP | Gravity.END);
-        pin.setMarginEnd((int) (2 * mDensity));
+        pin.setMarginEnd((int) (3 * mDensity));
         mPanelContainer.addView(mPinIcon, pin);
         mChannelPanel = new PanelDialog(this, mPanelContainer, false, 0) {
             @Override public void dismiss() { if (!isShowing() || mPanelClosing) return;
@@ -662,7 +662,7 @@ public class TvActivity extends ComponentActivity {
 
     private void updatePlaybackPresentation() {
         updateLoading();
-        if (mSourceMenu != null && mSnapshotItem.isEnabled() != canSnapshot()) {
+        if (mSourceMenu != null && mSnapshotItem != null && mSnapshotItem.isEnabled() != canSnapshot()) {
             mSnapshotItem.setEnabled(canSnapshot());
             mSourceMenu.getAdapter().notifyItemRangeChanged(0, mSourceMenu.getAdapter().getItemCount());
         }
@@ -1029,7 +1029,8 @@ public class TvActivity extends ComponentActivity {
             getMenuInflater().inflate(R.menu.tv_actions, menu);
             menu.findItem(R.id.channel_info).setEnabled(mChannel != null);
             menu.findItem(R.id.aspect_ratio).setEnabled(mChannel != null);
-            mSnapshotItem = menu.findItem(R.id.snapshot).setVisible(Build.VERSION.SDK_INT >= Build.VERSION_CODES.N).setEnabled(canSnapshot());
+            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.N) menu.removeItem(R.id.snapshot);
+            else mSnapshotItem = menu.findItem(R.id.snapshot).setEnabled(canSnapshot());
             int id = 0;
             for (Channel bean : mProviderList) {
                 boolean checked = bean.equals(mCurrentFolder);
