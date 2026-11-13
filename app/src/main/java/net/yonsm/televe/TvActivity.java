@@ -101,6 +101,7 @@ public class TvActivity extends ComponentActivity {
     private View mRadioIcon;
     private boolean mAudioOnly;
     private int mProviderRequest;
+    private boolean mSourceRefreshing;
     private int mPendingChannelFocus = -1;
     private boolean mRevealCurrentChannel;
     private int mPlaybackFailures;
@@ -253,7 +254,7 @@ public class TvActivity extends ComponentActivity {
         mOpenedExternally = channel != null;
         if (channel == null) mRestoredChannelUrl = loadStatusString(PrefUtils.STATE_CHANNEL_URL, null);
         mChannel = channel;
-        setupProviderMenu(false);
+        setupProviderMenu();
     }
 
     private void updatePanelWidth(int availableWidth) {
@@ -841,11 +842,11 @@ public class TvActivity extends ComponentActivity {
         });
     }
 
-    private void setupProviderMenu(boolean refreshChannels) {
+    private void setupProviderMenu() {
         final Channel root = mIptvSource.getRoot();
         ++mChannelRequest;
         setPlaylistLoading(true);
-        requestPlaylist(root, true, refreshChannels, list -> {
+        requestPlaylist(root, true, false, list -> {
             String id = loadStatusString(PrefUtils.STATE_CHANNEL_SERVER, null);
             int index = 0;
             for (int i = 0; i < list.size(); i++) {
@@ -857,7 +858,7 @@ public class TvActivity extends ComponentActivity {
             mProviderList.clear();
             if (isPlaylistList(list)) {
                 mProviderList.addAll(list);
-                setChannelProvider(index, refreshChannels);
+                setChannelProvider(index, false);
             } else {
                 mProviderList.add(root);
                 setChannelProvider(0, false);
@@ -875,7 +876,7 @@ public class TvActivity extends ComponentActivity {
     private void showSourceEditor() {
         if (mSourceEditor != null && mSourceEditor.isShowing()) return;
         mChannelPanel.dismiss();
-        boolean cancelable = !mProviderList.isEmpty();
+        boolean cancelable = mIptvSource.hasLoadedSource();
         final AlertDialog.Builder builder = Build.VERSION.SDK_INT <= Build.VERSION_CODES.N_MR1
                 ? new AlertDialog.Builder(this, R.style.Dialog_Light) : new AlertDialog.Builder(this);
         final EditText input = new EditText(builder.getContext());
@@ -885,12 +886,14 @@ public class TvActivity extends ComponentActivity {
         }
         input.setId(View.generateViewId());
         input.setSingleLine(true);
-        input.setSelectAllOnFocus(true);
         input.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_URI);
         input.setImeOptions(EditorInfo.IME_ACTION_DONE);
         input.setHint(PlaylistRepository.DEFAULT_URL);
         String currentUrl = mIptvSource.getRoot().url;
-        if (!PlaylistRepository.DEFAULT_URL.equals(currentUrl)) input.setText(currentUrl);
+        if (!Channel.equals(currentUrl, PlaylistRepository.DEFAULT_URL)) {
+            input.setText(currentUrl);
+            if (currentUrl != null) input.setSelection(currentUrl.length());
+        }
 
         int padding = (int) (mDensity * 24);
         FrameLayout content = new FrameLayout(builder.getContext());
@@ -923,13 +926,8 @@ public class TvActivity extends ComponentActivity {
             confirm.setOnClickListener(view -> {
                 String url = input.getText().toString().trim();
                 if (url.isEmpty()) url = PlaylistRepository.DEFAULT_URL;
-                if (!isSourceUrl(url)) {
-                    input.requestFocus();
-                    input.setError(getString(R.string.source_url_invalid));
-                    return;
-                }
+                else if (!url.contains("://")) url = "http://" + url;
                 updateSource(url);
-                if (cancelable) dialog.dismiss();
             });
             input.setOnEditorActionListener((view, actionId, event) -> {
                 if (event != null && event.getDownTime() < openedAt) return true;
@@ -944,6 +942,15 @@ public class TvActivity extends ComponentActivity {
             input.requestFocus();
         });
         dialog.setCancelable(cancelable);
+        dialog.setOnDismissListener(ignored -> {
+            if (!mSourceRefreshing) return;
+            mSourceRefreshing = false;
+            ++mProviderRequest;
+            ++mChannelRequest;
+            mIptvSource.cancelRefresh();
+            setPlaylistLoading(false);
+            showToast(getString(R.string.channel_list_refresh_failed));
+        });
         if (cancelable) dialog.setOnKeyListener(PanelDialog::closeOnKey);
         dialog.show();
     }
@@ -969,40 +976,37 @@ public class TvActivity extends ComponentActivity {
         }
     }
 
-    private static boolean isSourceUrl(String value) {
-        Uri uri = Uri.parse(value);
-        String scheme = uri.getScheme();
-        return uri.getHost() != null && ("http".equalsIgnoreCase(scheme) || "https".equalsIgnoreCase(scheme));
-    }
-
     private void updateSource(String url) {
         boolean changed = !Channel.equals(url, mIptvSource.getRoot().url);
-        if (!changed && mLoadingPlaylist) return;
-        if (!changed && mIptvSource.isInitializing()) {
-            setupProviderMenu(true);
-            return;
-        }
+        ++mChannelRequest;
+        setPlaylistLoading(true);
+        requestPlaylist(Channel.fromUrl(url), true, true, true, channels -> {
+            if (mSourceEditor != null) mSourceEditor.dismiss();
+            if (changed) applySource();
+            mIptvSource.setRootUrl(url);
+            PrefUtils.getConfigPref(this).edit().putString(PrefUtils.CONFIG_PLAYLIST_URL, url)
+                    .putBoolean(PrefUtils.CONFIG_PLAYLIST_LOADED, true).apply();
+            setupProviderMenu();
+        });
+    }
+
+    private void applySource() {
         mOpenedExternally = false;
         mRestoredChannelUrl = null;
-        if (changed) {
-            mCurrentFolder = null;
-            mChannelList.clear();
-            resetPlaybackFailures();
-            mAudioOnly = false;
-            mRadioIcon.setVisibility(View.GONE);
-            mChannel = null;
-            mPlayerView.removeCallbacks(mReplayAction);
-            mPlayerView.stop();
-            PrefUtils.getStatePref(this).edit()
-                    .remove(PrefUtils.STATE_CHANNEL_SERVER)
-                    .remove(PrefUtils.STATE_CHANNEL_URL)
-                    .apply();
-        }
+        mCurrentFolder = null;
+        mChannelList.clear();
+        resetPlaybackFailures();
+        mAudioOnly = false;
+        mRadioIcon.setVisibility(View.GONE);
+        mChannel = null;
+        mPlayerView.removeCallbacks(mReplayAction);
+        mPlayerView.stop();
+        PrefUtils.getStatePref(this).edit()
+                .remove(PrefUtils.STATE_CHANNEL_SERVER)
+                .remove(PrefUtils.STATE_CHANNEL_URL)
+                .apply();
         mProviderChanged = false;
-        if (changed) mProviderList.clear();
-        mIptvSource.setRootUrl(url);
-        PrefUtils.getConfigPref(this).edit().putString(PrefUtils.CONFIG_PLAYLIST_URL, url).apply();
-        setupProviderMenu(true);
+        mProviderList.clear();
     }
 
     private void showProviderMenu() {
@@ -1394,9 +1398,15 @@ public class TvActivity extends ComponentActivity {
     }
 
     private void requestPlaylist(Channel playlist, boolean providers, boolean refresh, PlaylistResult result) {
+        requestPlaylist(playlist, providers, refresh, false, result);
+    }
+
+    private void requestPlaylist(Channel playlist, boolean providers, boolean refresh, boolean sourceRefresh, PlaylistResult result) {
+        if (mSourceRefreshing) showToast(getString(R.string.channel_list_refresh_failed));
+        mSourceRefreshing = sourceRefresh;
         int request = providers ? ++mProviderRequest : ++mChannelRequest;
         int channelRequest = mChannelRequest;
-        mIptvSource.request(playlist, providers, refresh, new PlaylistRepository.Listener() {
+        PlaylistRepository.Listener listener = new PlaylistRepository.Listener() {
             private boolean isCurrent() {
                 return !isDestroyed() && request == (providers ? mProviderRequest : mChannelRequest)
                         && (!providers || channelRequest == mChannelRequest);
@@ -1407,8 +1417,9 @@ public class TvActivity extends ComponentActivity {
                 boolean fromNetwork = mIptvSource.fromNetwork;
                 runOnUiThread(() -> {
                     if (!isCurrent()) return;
-                    if (providers && mProviderList.isEmpty() && mSourceEditor != null) mSourceEditor.dismiss();
-                    if (fromNetwork && (!providers || !isPlaylistList(channels))) showToast(getString(R.string.channel_list_loaded));
+                    if (sourceRefresh) mSourceRefreshing = false;
+                    if (fromNetwork && (sourceRefresh || !providers || !isPlaylistList(channels)))
+                        showToast(getString(sourceRefresh && isPlaylistList(channels) ? R.string.source_list_loaded : R.string.channel_list_loaded));
                     result.onResult(channels);
                 });
             }
@@ -1418,17 +1429,21 @@ public class TvActivity extends ComponentActivity {
                 Log.e(TAG, "Load playlist failed: " + playlist.title, error);
                 runOnUiThread(() -> {
                     if (!isCurrent()) return;
+                    if (sourceRefresh) mSourceRefreshing = false;
                     if (!providers && mProviderChanged) {
                         mChannelList.clear();
                         mProviderChanged = false;
                     }
                     setPlaylistLoading(false);
-                    if (mResumed && (mSourceEditor == null || !mSourceEditor.isShowing())) {
+                    showToast(getString(sourceRefresh ? R.string.channel_list_refresh_failed : R.string.channel_list_empty));
+                    if (mResumed && (!providers || playlist == mIptvSource.getRoot())
+                            && (mSourceEditor == null || !mSourceEditor.isShowing())) {
                         if (providers) showSourceEditor();
                         else showProviderMenu();
                     }
                 });
             }
-        });
+        };
+        mIptvSource.request(playlist, providers, refresh, sourceRefresh, listener);
     }
 }

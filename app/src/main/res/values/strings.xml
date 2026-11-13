@@ -1,7 +1,9 @@
 <resources>
     <string name="channel_number_name">%1$s %2$s</string>
     <string name="channel_number_invalid">Channel %1$s is not available</string>
+    <string name="source_list_loaded">Source list refreshed</string>
     <string name="channel_list_loaded">Channel list refreshed</string>
+    <string name="channel_list_refresh_failed">Channel list refresh failed</string>
     <string name="channel_list_empty">No channels available</string>
     <string name="channel_playback_failed">Retrying...</string>
     <string name="snapshot">Snapshot</string>
@@ -39,7 +41,6 @@
     <string name="aspect_ratio_default">Origin</string>
     <string name="press_again_exit">Back again to exit</string>
     <string name="source">Source</string>
-    <string name="source_url_invalid">Enter a valid playlist URL</string>
     <string name="snapshot_saved">Saved snapshot: %1$s</string>
     <string name="snapshot_failed">Snapshot failed: %1$s</string>
     <string name="channel_info_copied">Channel information copied</string>

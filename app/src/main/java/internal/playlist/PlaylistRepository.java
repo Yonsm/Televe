@@ -18,6 +18,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import io.library.net.HttpClient;
 import internal.utils.PrefUtils;
@@ -25,13 +26,16 @@ import internal.utils.PrefUtils;
 /** Caches each list until it is explicitly refreshed. */
 public class PlaylistRepository implements AutoCloseable {
     public static final String DEFAULT_URL = "https://yonsm.github.io/IPTV/lists.m3u8";
-    private static final String LOCAL_URL = "http://192.168.1.1:84/lists.m3u8";
+    private static final String LOCAL_URL = "http://192.168.1.1:84/lists.m3u";
     private final ExecutorService executor = Executors.newSingleThreadExecutor();
     private final File directory;
+    private final AtomicInteger requestVersion = new AtomicInteger();
     private volatile Channel root;
     private volatile boolean closed;
+    private volatile boolean refreshChannels;
     public boolean fromNetwork;
     private volatile SharedPreferences initialPreferences;
+    private final SharedPreferences preferences;
 
     public interface Listener {
         void onResult(List<Channel> channels);
@@ -39,7 +43,7 @@ public class PlaylistRepository implements AutoCloseable {
     }
 
     public PlaylistRepository(Context context) {
-        SharedPreferences preferences = PrefUtils.getConfigPref(context);
+        preferences = PrefUtils.getConfigPref(context);
         directory = new File(context.getFilesDir(), "playlists");
         if (!directory.isDirectory()) directory.mkdirs();
         setRootUrl(preferences.getString(PrefUtils.CONFIG_PLAYLIST_URL, DEFAULT_URL));
@@ -52,8 +56,8 @@ public class PlaylistRepository implements AutoCloseable {
         return root;
     }
 
-    public boolean isInitializing() {
-        return initialPreferences != null;
+    public boolean hasLoadedSource() {
+        return preferences.getBoolean(PrefUtils.CONFIG_PLAYLIST_LOADED, false);
     }
 
     public synchronized void setRootUrl(String url) {
@@ -63,33 +67,52 @@ public class PlaylistRepository implements AutoCloseable {
         root = channel;
     }
 
-    public void request(Channel playlist, boolean providers, boolean refresh, Listener listener) {
+    public void cancelRefresh() {
+        requestVersion.incrementAndGet();
+    }
+
+    public void request(Channel playlist, boolean providers, boolean refresh, boolean sourceRefresh, Listener listener) {
         if (closed) return;
         final Channel requestedRoot = root;
+        int version = requestVersion.incrementAndGet();
         executor.execute(() -> {
-            if (closed || root != requestedRoot) return;
+            if (closed || root != requestedRoot || version != requestVersion.get()) return;
             try {
-                List<Channel> channels = providers && playlist == requestedRoot ? initializeSource(playlist) : null;
+                List<Channel> channels = providers && playlist == requestedRoot && !sourceRefresh ? initializeSource(playlist, version) : null;
                 fromNetwork = channels != null;
-                if (closed || root != requestedRoot) return;
+                if (closed || root != requestedRoot || version != requestVersion.get()) return;
                 final String url = playlist.url;
                 AtomicFile cache = cacheFile(url, playlist.baseUrl);
-                if (channels == null && !refresh) channels = readCache(cache, url, providers);
+                if (channels == null && !refresh && (providers || !refreshChannels)) channels = readCache(cache, url, providers);
                 if (channels == null || channels.isEmpty()) {
                     channels = HttpClient.get(url, new PlaylistParser(providers, playlist.baseUrl));
                     if (channels.isEmpty()) throw new IOException("Playlist is empty");
                     fromNetwork = true;
-                    if (closed || root != requestedRoot) return;
-                    writeCache(cache, url, channels);
+                    if (closed || root != requestedRoot || version != requestVersion.get()) return;
+                    boolean sourceDirectory = sourceRefresh;
+                    if (sourceDirectory) for (Channel channel : channels) sourceDirectory &= channel.playlistSource;
+                    boolean clearChannels = !providers && refreshChannels;
+                    if (!writeCache(cache, url, channels)) throw new IOException("Cannot cache playlist");
+                    if (sourceRefresh && !sourceDirectory || clearChannels) {
+                        File[] files = directory.listFiles();
+                        File rootCache = cacheFile(requestedRoot.url, requestedRoot.baseUrl).getBaseFile();
+                        if (files != null) for (File file : files)
+                            if (!file.equals(cache.getBaseFile()) && (!clearChannels || !file.equals(rootCache)) && !file.delete())
+                                Log.w("PlaylistRepository", "Cannot delete cache: " + file);
+                    }
+                    if (sourceRefresh || clearChannels) refreshChannels = sourceDirectory;
                 }
-                if (!closed && root == requestedRoot) {
+                if (!closed && root == requestedRoot && version == requestVersion.get()) {
+                    if (providers && playlist == requestedRoot) preferences.edit().putBoolean(PrefUtils.CONFIG_PLAYLIST_LOADED, true).apply();
                     rememberInitialSource(playlist);
                     listener.onResult(channels);
                 }
             } catch (Exception error) {
-                if (closed || root != requestedRoot) return;
-                List<Channel> cached = readCache(cacheFile(playlist.url, playlist.baseUrl), playlist.url, providers);
+                if (closed || root != requestedRoot || version != requestVersion.get()) return;
+                List<Channel> cached = sourceRefresh || providers && playlist != requestedRoot ? null
+                        : readCache(cacheFile(playlist.url, playlist.baseUrl), playlist.url, providers);
                 if (cached != null && !cached.isEmpty()) {
+                    if (providers && playlist == requestedRoot) preferences.edit().putBoolean(PrefUtils.CONFIG_PLAYLIST_LOADED, true).apply();
                     rememberInitialSource(playlist);
                     fromNetwork = false;
                     listener.onResult(cached);
@@ -98,7 +121,7 @@ public class PlaylistRepository implements AutoCloseable {
         });
     }
 
-    private List<Channel> initializeSource(Channel playlist) {
+    private List<Channel> initializeSource(Channel playlist, int version) {
         SharedPreferences preferences = initialPreferences;
         if (preferences == null) return null;
         HttpURLConnection connection = null;
@@ -117,7 +140,7 @@ public class PlaylistRepository implements AutoCloseable {
             if (channels.isEmpty()) return null;
             synchronized (this) {
                 // A source entered manually while probing always takes precedence.
-                if (closed || root != playlist) return null;
+                if (closed || root != playlist || version != requestVersion.get()) return null;
                 playlist.id = playlist.title = playlist.url = LOCAL_URL;
                 rememberInitialSource(playlist);
                 writeCache(cacheFile(LOCAL_URL, null), LOCAL_URL, channels);
@@ -163,7 +186,7 @@ public class PlaylistRepository implements AutoCloseable {
         }
     }
 
-    private void writeCache(AtomicFile file, String url, List<Channel> channels) {
+    private boolean writeCache(AtomicFile file, String url, List<Channel> channels) {
         FileOutputStream stream = null;
         try {
             stream = file.startWrite();
@@ -174,9 +197,11 @@ public class PlaylistRepository implements AutoCloseable {
             for (Channel channel : channels) output.writeUTF(channel.baseUrl == null ? "" : channel.baseUrl);
             output.flush();
             file.finishWrite(stream);
+            return true;
         } catch (Exception error) {
             if (stream != null) file.failWrite(stream);
             Log.w("PlaylistRepository", "Cannot cache playlist", error);
+            return false;
         }
     }
 

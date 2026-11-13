@@ -7,6 +7,7 @@ import android.content.SharedPreferences;
 public class PrefUtils {
 
 	public static final String CONFIG_PLAYLIST_URL = "playlist_url";
+	public static final String CONFIG_PLAYLIST_LOADED = "playlist_loaded";
 	public static final String TV_ASPECT_RATIO = "aspect_ratio";
 
 	public static final String STATE_CHANNEL_SERVER = "channel_server";
