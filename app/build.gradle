@@ -32,8 +32,8 @@ android {
         applicationId "net.yonsm.televe"
         minSdk project.ext.minSdkVersion
         targetSdk project.ext.targetSdkVersion
-        versionCode 6
-        versionName '2.1.4'
+        versionCode 7
+        versionName '2.1.5'
         buildConfigField 'String', 'BUILD_TIME', '"' + new Date().format('MMddHHmm', TimeZone.getTimeZone('Asia/Shanghai')) + '"'
     }
 
