@@ -5,18 +5,21 @@ import androidx.activity.OnBackPressedCallback;
 import androidx.media3.common.C;
 import androidx.media3.common.Tracks;
 import android.app.AlertDialog;
+import android.app.PictureInPictureParams;
 import android.annotation.SuppressLint;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.res.Resources;
 import android.graphics.Bitmap;
 import android.graphics.Color;
+import android.graphics.Rect;
 import android.graphics.drawable.Drawable;
 import android.net.Uri;
 import android.os.AsyncTask;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.SystemClock;
+import android.util.Rational;
 import io.library.widget.PanelDialog;
 import androidx.recyclerview.widget.GridLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
@@ -171,6 +174,7 @@ public class TvActivity extends ComponentActivity {
         mPanelContainer.addView(mPinIcon, pin);
         mChannelPanel = new PanelDialog(this, mPanelContainer, false, 0) {
             @Override public void dismiss() { if (!isShowing() || mPanelClosing) return;
+                if (!mResumed) { mPanelContainer.animate().cancel(); super.dismiss(); return; }
                 mPanelClosing = true;
                 mPanelContainer.animate().translationX(-mPanelContainer.getWidth()).setDuration(110).withEndAction(() -> { mPanelClosing = false; super.dismiss(); });
             }
@@ -236,6 +240,7 @@ public class TvActivity extends ComponentActivity {
             mPlayerView.setAspectRatio(mAspectRatio);
         }
 
+        mPlayerView.addOnLayoutChangeListener((v, l, t, r, b, ol, ot, or, ob) -> updatePip(false));
         updatePanelWidth(res.getDisplayMetrics().widthPixels);
         mRootView.addOnLayoutChangeListener((view, left, top, right, bottom, oldLeft, oldTop, oldRight, oldBottom) -> {
             if (right - left != oldRight - oldLeft) updatePanelWidth(right - left);
@@ -294,6 +299,11 @@ public class TvActivity extends ComponentActivity {
             mChannelInfoDialog = null;
         }
         hideChannelBanner();
+    }
+
+    @Override
+    protected void onStop() {
+        super.onStop();
         mPlayerView.removeCallbacks(mReplayAction);
         mPlayerView.removeCallbacks(mResetPlaybackFailuresAction);
         mPlayerView.stop();
@@ -301,16 +311,53 @@ public class TvActivity extends ComponentActivity {
     }
 
     @Override
+    protected void onUserLeaveHint() {
+        super.onUserLeaveHint();
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) updatePip(true);
+    }
+
+    private void updatePip(boolean enter) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O
+                || !getPackageManager().hasSystemFeature(PackageManager.FEATURE_PICTURE_IN_PICTURE)) return;
+        boolean canPip = mChannel != null && !mAudioOnly
+                && mLastState != PlayerView.State.IDLE && mLastState != PlayerView.State.NONE
+                && (mSourceEditor == null || !mSourceEditor.isShowing());
+        if (enter ? !canPip || isInPictureInPictureMode() : Build.VERSION.SDK_INT < Build.VERSION_CODES.S) return;
+        Rect bounds = new Rect();
+        mPlayerView.getGlobalVisibleRect(bounds);
+        int w = bounds.width(), h = bounds.height();
+        boolean valid = w > 0 && h > 0 && w * 100 >= h * 42 && w * 100 <= h * 239;
+        PictureInPictureParams.Builder builder = new PictureInPictureParams.Builder()
+                .setAspectRatio(valid ? new Rational(w, h) : new Rational(16, 9));
+        if (valid) builder.setSourceRectHint(bounds);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) builder.setAutoEnterEnabled(canPip);
+        if (enter) {
+            mResumed = false;
+            mChannelPanel.dismiss();
+        }
+        try {
+            if (enter) enterPictureInPictureMode(builder.build());
+            else setPictureInPictureParams(builder.build());
+        } catch (IllegalStateException ignored) {
+            if (enter) mResumed = true;
+        }
+    }
+
+    @Override
     public void onResume() {
         super.onResume();
-
         mResumed = true;
         updateLoading();
         resetPlaybackFailures();
 
         if (mChannel != null && (mOpenedExternally
-                || (mCurrentFolder != null && fixCurrentIndexIfNecessary() >= 0)))
-            playChannel(mChannel);
+                || (mCurrentFolder != null && fixCurrentIndexIfNecessary() >= 0))) {
+            if (!Channel.equals(mPlaybackUrl, mChannel.url) || mLastState == PlayerView.State.IDLE) playChannel(mChannel);
+        } else if (!mOpenedExternally && !mLoadingPlaylist && mChannelList.size() == 0
+                && (mSourceEditor == null || !mSourceEditor.isShowing())) {
+            if (mProviderList.isEmpty()) setupProviderMenu();
+            else if (mCurrentFolder != null) setChannelProvider(Math.max(0, mProviderList.indexOf(mCurrentFolder)), false);
+        }
     }
 
     private long mLastBackPressedTime;
@@ -649,7 +696,7 @@ public class TvActivity extends ComponentActivity {
         SharedPreferences pref = PrefUtils.getConfigPref(this);
         mAspectRatio = pref.getFloat(PrefUtils.TV_ASPECT_RATIO + ":" + channel.url, 16 / 9f);
         mPlayerView.setAspectRatio(mAspectRatio);
-        if (!mResumed) return;
+        if (!mResumed && mPlaybackUrl == null) return;
         Uri uri = Uri.parse(channel.url);
         int sourceType = PlayerView.getFixedSourceType(uri);
         mPlayerView.removeCallbacks(mReplayAction);
@@ -663,6 +710,7 @@ public class TvActivity extends ComponentActivity {
 
     private void updatePlaybackPresentation() {
         updateLoading();
+        updatePip(false);
         if (mSourceMenu != null && mSnapshotItem != null && mSnapshotItem.isEnabled() != canSnapshot()) {
             mSnapshotItem.setEnabled(canSnapshot());
             mSourceMenu.getAdapter().notifyItemRangeChanged(0, mSourceMenu.getAdapter().getItemCount());
@@ -908,6 +956,7 @@ public class TvActivity extends ComponentActivity {
                 .setPositiveButton(android.R.string.ok, null)
                 .create();
         dialog.setOnShowListener(ignored -> {
+            updatePip(false);
             long openedAt = SystemClock.uptimeMillis();
             View confirm = dialog.getButton(AlertDialog.BUTTON_POSITIVE);
             View cancel = dialog.getButton(AlertDialog.BUTTON_NEGATIVE);
@@ -943,6 +992,7 @@ public class TvActivity extends ComponentActivity {
         });
         dialog.setCancelable(cancelable);
         dialog.setOnDismissListener(ignored -> {
+            updatePip(false);
             if (!mSourceRefreshing) return;
             mSourceRefreshing = false;
             ++mProviderRequest;
@@ -1303,7 +1353,7 @@ public class TvActivity extends ComponentActivity {
             mPlayerView.removeCallbacks(mResetPlaybackFailuresAction);
             String url = mChannel != null ? mChannel.url : null;
             Log.w(TAG, "onError: " + url, cause);
-            if (mResumed && mChannel != null) {
+            if ((mResumed || mPlaybackUrl != null) && mChannel != null) {
                 if (PlayerView.exceedsDecoderCapabilities(cause)) {
                     mPlayerView.removeCallbacks(mReplayAction);
                     showToast(getString(R.string.channel_decoder_unsupported));

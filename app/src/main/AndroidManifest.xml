@@ -20,7 +20,8 @@
         <activity
             android:name=".TvActivity"
             android:exported="true"
-            android:configChanges="orientation|keyboardHidden|screenSize">
+            android:supportsPictureInPicture="true"
+            android:configChanges="orientation|keyboardHidden|screenSize|smallestScreenSize|screenLayout">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
