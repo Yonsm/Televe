@@ -57,15 +57,10 @@ public class PlaylistParser implements HttpClient.Parser<List<Channel>> {
                 hasM3uHeader = true;
             } else if (line.startsWith("#BASE:")) {
                 baseUrl = line.substring(6).trim();
-            } else if (line.startsWith("#LOAD:") || line.startsWith("#http")) {
-                boolean load = line.startsWith("#LOAD:");
-                String target = load ? line.substring(6).trim() : line.substring(1);
-                if (!load && target.endsWith("/")) {
-                    // 旧写法：以目录结尾的 #http 地址作为后续相对地址的前缀。
-                    baseUrl = target;
-                } else if (depth < MAX_LOAD_DEPTH) {
+            } else if (line.startsWith("#LOAD:")) {
+                if (depth < MAX_LOAD_DEPTH) {
                     try {
-                        List<Channel> included = HttpClient.get(target,
+                        List<Channel> included = HttpClient.get(line.substring(6).trim(),
                                 new PlaylistParser(providers, null, depth + 1));
                         result.addAll(included);
                     } catch (Exception ignored) {
