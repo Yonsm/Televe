@@ -39,6 +39,8 @@
     <string name="about_message">An IPTV live player for Android phones, tablets and TVs.</string>
     <string name="aspect_ratio">Aspect</string>
     <string name="aspect_ratio_default">Origin</string>
+    <string name="aspect_ratio_fill">Fill</string>
+    <string name="aspect_ratio_zoom">Zoom</string>
     <string name="press_again_exit">Back again to exit</string>
     <string name="source">Source</string>
     <string name="snapshot_saved">Saved snapshot: %1$s</string>

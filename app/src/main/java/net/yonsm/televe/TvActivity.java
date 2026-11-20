@@ -1186,17 +1186,19 @@ public class TvActivity extends ComponentActivity {
     }
 
     private void showAspectRatio() {
-        float[] ratios = {0, 16 / 9f, 4 / 3f};
+        float[] ratios = {16 / 9f, 4 / 3f, PlayerView.ASPECT_ORIGIN, PlayerView.ASPECT_FILL, PlayerView.ASPECT_ZOOM};
+        int checked = mAspectRatio == ratios[0] ? 0 : mAspectRatio == ratios[1] ? 1
+                : mAspectRatio == ratios[3] ? 3 : mAspectRatio == ratios[4] ? 4 : 2;
         AlertDialog dialog = new AlertDialog.Builder(this)
                 .setTitle(R.string.aspect_ratio)
-                .setSingleChoiceItems(new String[]{getString(R.string.aspect_ratio_default), "16:9", "4:3"},
-                        mAspectRatio == ratios[1] ? 1 : mAspectRatio == ratios[2] ? 2 : 0, (choice, index) -> {
-                            mAspectRatio = ratios[index];
-                            mPlayerView.setAspectRatio(mAspectRatio);
-                            if (mChannel != null) PrefUtils.getConfigPref(this).edit()
-                                    .putFloat(PrefUtils.TV_ASPECT_RATIO + ":" + mChannel.url, mAspectRatio).apply();
-                            choice.dismiss();
-                        })
+                .setSingleChoiceItems(new String[]{"16:9", "4:3", getString(R.string.aspect_ratio_default),
+                        getString(R.string.aspect_ratio_fill), getString(R.string.aspect_ratio_zoom)}, checked, (choice, index) -> {
+                    mAspectRatio = ratios[index];
+                    mPlayerView.setAspectRatio(mAspectRatio);
+                    if (mChannel != null) PrefUtils.getConfigPref(this).edit()
+                            .putFloat(PrefUtils.TV_ASPECT_RATIO + ":" + mChannel.url, mAspectRatio).apply();
+                    choice.dismiss();
+                })
                 .setOnKeyListener(PanelDialog::closeOnKey).create();
         dialog.show();
         PanelDialog.immersive(dialog.getWindow());

@@ -58,9 +58,13 @@ public class PlayerView extends FrameLayout {
     }
 
 
+    public static final float ASPECT_ORIGIN = 0f;
+    public static final float ASPECT_FILL = -1f;
+    public static final float ASPECT_ZOOM = -2f;
+
     private int mVideoWidth;
     private int mVideoHeight;
-    private float mAspectRatio = 0;
+    private float mAspectRatio = ASPECT_ORIGIN;
     private ExoPlayer mExoPlayer;
     private MediaCodecInfo mVideoCodec;
     private String mVideoDecoder;
@@ -302,16 +306,19 @@ public class PlayerView extends FrameLayout {
     protected void onMeasure(int widthMeasureSpec, int heightMeasureSpec) {
         int videoWidth = getVideoWidth();
         int videoHeight = getVideoHeight();
-        if (mAspectRatio != 0) {
+        if (mAspectRatio > 0) {
             // Exact reference dimensions keep both preset ratios free of rounding borders.
             videoHeight = 1080;
             videoWidth = Math.round(videoHeight * mAspectRatio);
+        } else if (mAspectRatio == ASPECT_ZOOM && (videoWidth <= 0 || videoHeight <= 0)) {
+            videoWidth = 1920;
+            videoHeight = 1080;
         }
 
         int width = getDefaultSize(videoWidth, widthMeasureSpec);
         int height = getDefaultSize(videoHeight, heightMeasureSpec);
 
-        if (videoWidth > 0 && videoHeight > 0) {
+        if (mAspectRatio != ASPECT_FILL && videoWidth > 0 && videoHeight > 0) {
             int widthSpecMode = MeasureSpec.getMode(widthMeasureSpec);
             int widthSpecSize = MeasureSpec.getSize(widthMeasureSpec);
             int heightSpecMode = MeasureSpec.getMode(heightMeasureSpec);
@@ -320,9 +327,15 @@ public class PlayerView extends FrameLayout {
             if (widthSpecMode == MeasureSpec.EXACTLY && heightSpecMode == MeasureSpec.EXACTLY) {
                 width = widthSpecSize;
                 height = heightSpecSize;
-                if (videoWidth * height  < width * videoHeight) {
+                if (mAspectRatio == ASPECT_ZOOM) {
+                    if (videoWidth * height < width * videoHeight) {
+                        height = width * videoHeight / videoWidth;
+                    } else if (videoWidth * height > width * videoHeight) {
+                        width = height * videoWidth / videoHeight;
+                    }
+                } else if (videoWidth * height < width * videoHeight) {
                     width = height * videoWidth / videoHeight;
-                } else if (videoWidth * height  > width * videoHeight) {
+                } else if (videoWidth * height > width * videoHeight) {
                     height = width * videoHeight / videoWidth;
                 }
             } else if (widthSpecMode == MeasureSpec.EXACTLY) {
