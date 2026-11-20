@@ -13,6 +13,7 @@ import android.view.SurfaceView;
 import android.view.View;
 import android.widget.FrameLayout;
 
+import androidx.media3.common.AudioAttributes;
 import androidx.media3.common.C;
 import androidx.media3.common.FileTypes;
 import androidx.media3.common.Format;
@@ -487,6 +488,7 @@ public class PlayerView extends FrameLayout {
                 .setRenderersFactory(rendererFactory)
                 .setTrackSelector(new DefaultTrackSelector(context))
                 .setLoadControl(loadControl)
+                .setAudioAttributes(AudioAttributes.DEFAULT, true)
                 .build();
     }
 
