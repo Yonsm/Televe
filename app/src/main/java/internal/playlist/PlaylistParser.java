@@ -16,7 +16,6 @@ import io.library.net.HttpClient;
 
 /** Reads M3U playlists and comma-separated channel lists. */
 public class PlaylistParser implements HttpClient.Parser<List<Channel>> {
-    private static final String LOGO_BASE = "https://yonsm.github.io/IPTV/LOGO/";
     private static final Pattern ATTRIBUTE = Pattern.compile("([\\w-]+)=(?:\"([^\"]*)\"|([^\\s,]+))");
     private final boolean providers;
     private final String defaultBaseUrl;
@@ -59,9 +58,6 @@ public class PlaylistParser implements HttpClient.Parser<List<Channel>> {
                     channel.url = line;
                     if (Channel.isEmpty(channel.title)) channel.title = line;
                     if (Channel.isEmpty(channel.id)) channel.id = channel.title;
-                    if (Channel.isEmpty(channel.thumbnail)) {
-                        channel.thumbnail = LOGO_BASE + channel.id.replace("-", "").replace("HD", "").trim() + ".jpg";
-                    }
                     channel.playlist = providers;
                     channel.baseUrl = Channel.isEmpty(baseUrl) ? "" : baseUrl;
                     channel.playlistSource = (pending != null && pending.playlist) || isPlaylistUrl(channel.url);
@@ -159,7 +155,6 @@ public class PlaylistParser implements HttpClient.Parser<List<Channel>> {
         channel.id = attributes.get("tvg-name");
         if (Channel.isEmpty(channel.id)) channel.id = attributes.get("server-id");
         if (Channel.isEmpty(channel.id)) channel.id = attributes.get("tvg-id");
-        channel.thumbnail = attributes.get("tvg-logo");
         boolean playlist = attributes.containsKey("server-id");
         return new PendingEntry(channel, playlist);
     }

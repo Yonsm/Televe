@@ -16,7 +16,6 @@ public class Channel implements Parcelable {
     public String id = "";
     public String title = "";
     public String url = "";
-    public String thumbnail = "";
     public String baseUrl = "";
     public int order = NO_ORDER;
     public long number = -1;
@@ -29,7 +28,6 @@ public class Channel implements Parcelable {
         id = in.readUTF();
         title = in.readUTF();
         url = in.readUTF();
-        thumbnail = in.readUTF();
         order = in.readInt();
         number = in.readLong();
         playlist = in.readBoolean();
@@ -47,7 +45,6 @@ public class Channel implements Parcelable {
         writeUTF(id, out);
         writeUTF(title, out);
         writeUTF(url, out);
-        writeUTF(thumbnail, out);
         out.writeInt(order);
         out.writeLong(number);
         out.writeBoolean(playlist);
@@ -77,8 +74,7 @@ public class Channel implements Parcelable {
 
     public boolean equalsContent(Channel other) {
         return equals(other) && order == other.order && number == other.number && Objects.equals(title, other.title)
-                && playlistSource == other.playlistSource && Objects.equals(thumbnail, other.thumbnail)
-                && Objects.equals(baseUrl, other.baseUrl);
+                && playlistSource == other.playlistSource && Objects.equals(baseUrl, other.baseUrl);
     }
 
     private static void writeUTF(String value, DataOutput out) throws IOException {
@@ -89,7 +85,6 @@ public class Channel implements Parcelable {
         id = Objects.toString(in.readString(), "");
         title = Objects.toString(in.readString(), "");
         url = Objects.toString(in.readString(), "");
-        thumbnail = Objects.toString(in.readString(), "");
         order = in.readInt();
         number = in.readLong();
         playlist = in.readByte() != 0;
@@ -105,7 +100,6 @@ public class Channel implements Parcelable {
         out.writeString(id);
         out.writeString(title);
         out.writeString(url);
-        out.writeString(thumbnail);
         out.writeInt(order);
         out.writeLong(number);
         out.writeByte(playlist ? (byte) 1 : 0);

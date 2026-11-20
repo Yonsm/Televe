@@ -22,7 +22,6 @@ public class PlaylistParserTest {
         Channel channel = parse("#EXTM3U\n#EXTINF:-1 tvg-name=\"News HD\" tvg-logo=\"https://example.com/logo?a=b\",News, World\nhttps://example.com/live.m3u8\n", false).get(0);
         assertEquals("News HD", channel.id);
         assertEquals("News, World", channel.title);
-        assertEquals("https://example.com/logo?a=b", channel.thumbnail);
         assertEquals("https://example.com/live.m3u8", channel.url);
         assertEquals(Channel.NO_ORDER, channel.order);
         assertFalse(channel.playlist);
