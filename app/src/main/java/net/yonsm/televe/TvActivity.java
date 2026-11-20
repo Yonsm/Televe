@@ -105,6 +105,7 @@ public class TvActivity extends ComponentActivity {
     private boolean mAudioOnly;
     private int mProviderRequest;
     private boolean mSourceRefreshing;
+    private String mSourceRefreshUrl;
     private int mPendingChannelFocus = -1;
     private boolean mRevealCurrentChannel;
     private int mPlaybackFailures;
@@ -272,6 +273,12 @@ public class TvActivity extends ComponentActivity {
     @Override
     protected void onDestroy() {
         cancelChannelFocus();
+        if (mSourceEditor != null) {
+            mSourceRefreshing = false;
+            mSourceRefreshUrl = null;
+            mSourceEditor.dismiss();
+            mSourceEditor = null;
+        }
         if (mPlayerView != null) {
             mPlayerView.removeCallbacks(mResetPlaybackFailuresAction);
             mPlayerView.setKeepScreenOn(false);
@@ -867,6 +874,7 @@ public class TvActivity extends ComponentActivity {
 
         requestPlaylist(folder, false, refresh, list -> {
             mChannelList.replaceAll(list);
+            mChannelList.setCurrentItem(ChannelList.INVALID_POSITION);
             setPlaylistLoading(false);
             if (mProviderChanged && !list.isEmpty()) {
                 mChannel = null;
@@ -1000,6 +1008,7 @@ public class TvActivity extends ComponentActivity {
             updatePip(false);
             if (!mSourceRefreshing) return;
             mSourceRefreshing = false;
+            mSourceRefreshUrl = null;
             ++mProviderRequest;
             ++mChannelRequest;
             mIptvSource.cancelRefresh();
@@ -1032,6 +1041,13 @@ public class TvActivity extends ComponentActivity {
     }
 
     private void updateSource(String url) {
+        if (mSourceRefreshing) {
+            if (!Channel.equals(url, mSourceRefreshUrl)) {
+                mSourceRefreshing = false;
+                mSourceRefreshUrl = null;
+            } else return;
+        }
+        mSourceRefreshUrl = url;
         boolean changed = !Channel.equals(url, mIptvSource.getRoot().url);
         ++mChannelRequest;
         setPlaylistLoading(true);
@@ -1050,12 +1066,15 @@ public class TvActivity extends ComponentActivity {
         mRestoredChannelUrl = null;
         mCurrentFolder = null;
         mChannelList.clear();
+        mChannelList.setCurrentItem(ChannelList.INVALID_POSITION);
         resetPlaybackFailures();
         mAudioOnly = false;
         mRadioIcon.setVisibility(View.GONE);
         mChannel = null;
+        mPlaybackUrl = null;
         mPlayerView.removeCallbacks(mReplayAction);
         mPlayerView.stop();
+        updatePlaybackPresentation();
         PrefUtils.getStatePref(this).edit()
                 .remove(PrefUtils.STATE_CHANNEL_SERVER)
                 .remove(PrefUtils.STATE_CHANNEL_URL)
@@ -1457,7 +1476,6 @@ public class TvActivity extends ComponentActivity {
     }
 
     private void requestPlaylist(Channel playlist, boolean providers, boolean refresh, boolean sourceRefresh, PlaylistResult result) {
-        if (mSourceRefreshing) showToast(getString(R.string.channel_list_refresh_failed));
         mSourceRefreshing = sourceRefresh;
         int request = providers ? ++mProviderRequest : ++mChannelRequest;
         int channelRequest = mChannelRequest;
@@ -1472,7 +1490,10 @@ public class TvActivity extends ComponentActivity {
                 boolean fromNetwork = mIptvSource.fromNetwork;
                 runOnUiThread(() -> {
                     if (!isCurrent()) return;
-                    if (sourceRefresh) mSourceRefreshing = false;
+                    if (sourceRefresh) {
+                        mSourceRefreshing = false;
+                        mSourceRefreshUrl = null;
+                    }
                     if (fromNetwork && (sourceRefresh || !providers || !isPlaylistList(channels)))
                         showToast(getString(sourceRefresh && isPlaylistList(channels) ? R.string.source_list_loaded : R.string.channel_list_loaded));
                     result.onResult(channels);
@@ -1484,9 +1505,13 @@ public class TvActivity extends ComponentActivity {
                 Log.e(TAG, "Load playlist failed: " + playlist.title, error);
                 runOnUiThread(() -> {
                     if (!isCurrent()) return;
-                    if (sourceRefresh) mSourceRefreshing = false;
+                    if (sourceRefresh) {
+                        mSourceRefreshing = false;
+                        mSourceRefreshUrl = null;
+                    }
                     if (!providers && mProviderChanged) {
                         mChannelList.clear();
+                        mChannelList.setCurrentItem(ChannelList.INVALID_POSITION);
                         mProviderChanged = false;
                     }
                     setPlaylistLoading(false);

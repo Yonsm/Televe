@@ -109,6 +109,7 @@ public class PlaylistRepository implements AutoCloseable {
                 }
             } catch (Exception error) {
                 if (closed || root != requestedRoot || version != requestVersion.get()) return;
+                if (!providers) refreshChannels = false;
                 List<Channel> cached = sourceRefresh || providers && playlist != requestedRoot ? null
                         : readCache(cacheFile(playlist.url, playlist.baseUrl), playlist.url, providers);
                 if (cached != null && !cached.isEmpty()) {
