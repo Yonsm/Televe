@@ -744,7 +744,7 @@ public class TvActivity extends ComponentActivity {
         mChannel = channel;
         mChannelList.setCurrentItem(index);
         playChannel(mChannel);
-        showChannelBanner(channelLabel(String.valueOf(channel.number), channel.title));
+        showChannelBanner(channelLabel(String.valueOf(channel.number), displayTitle(channel)));
 
         SharedPreferences.Editor state = PrefUtils.getStatePref(this).edit()
                 .putString(PrefUtils.STATE_CHANNEL_URL, mChannel.url);
@@ -781,6 +781,10 @@ public class TvActivity extends ComponentActivity {
         mChannelBanner.setText(text);
         mBannerContainer.setVisibility(View.VISIBLE);
         mChannelBanner.postDelayed(mHideChannelBannerAction, 3000);
+    }
+
+    private String displayTitle(Channel channel) {
+        return mCurrentFolder == null ? channel.title : Channel.trimPrefix(channel.title, mCurrentFolder.title);
     }
 
     private CharSequence channelLabel(String number, String name) {
@@ -1179,7 +1183,7 @@ public class TvActivity extends ComponentActivity {
     private final Runnable mShowLoading = () -> {
         mLoadingView.setVisibility(View.VISIBLE);
         if (!mChannelPanel.isShowing() && mChannel != null && mBannerContainer.getVisibility() != View.VISIBLE)
-            showChannelBanner(channelLabel(String.valueOf(mChannel.number), mChannel.title));
+            showChannelBanner(channelLabel(String.valueOf(mChannel.number), displayTitle(mChannel)));
     };
 
     private void clearSourceMenu() {
@@ -1258,7 +1262,7 @@ public class TvActivity extends ComponentActivity {
                 iconView.setImageDrawable(current ? mPlayIcon : null);
 
                 numberView.setText(String.valueOf(channel.number));
-                titleView.setText(channel.title);
+                titleView.setText(displayTitle(channel));
             }
         }
 
