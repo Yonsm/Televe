@@ -1,5 +1,5 @@
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="16dp" android:height="24dp"
     android:viewportWidth="16" android:viewportHeight="24">
-    <path android:fillColor="@color/channel_number" android:pathData="M4,5v14l11,-7z"/>
+    <path android:fillColor="@color/colorAccent" android:pathData="M4,5v14l11,-7z"/>
 </vector>

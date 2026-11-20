@@ -346,6 +346,7 @@ public class TvActivity extends ComponentActivity {
     @Override
     public void onResume() {
         super.onResume();
+        PanelDialog.immersive(getWindow());
         mResumed = true;
         updateLoading();
         resetPlaybackFailures();
