@@ -34,7 +34,7 @@ public abstract class SimpleBaseClient implements Closeable {
     public static final String CRLF = "\r\n";
 
     public static final int SO_TIMEOUT = 15000;
-    private static final int IPV6_CONNECT_TIMEOUT = 3000;
+    private static final int IPV6_CONNECT_TIMEOUT = 1000;
     public static final int BUFFER_SIZE = 16384;
 
     public static final Charset UTF8_CHARSET = Charset.forName("UTF-8");
@@ -225,12 +225,8 @@ public abstract class SimpleBaseClient implements Closeable {
 
     protected Response receiveHeaders() throws IOException {
         String line = readUtf8Line(mInStream, mLineBuffer);
-
-        String protocol = getProtocolVersion();
-//        if (!line.startsWith(protocol))
-//            throw new IOException("bad protocol: " + line);
-
-        String statusLine = line.substring(protocol.length()).trim();
+        int space = line.indexOf(' ');
+        String statusLine = space < 0 ? "" : line.substring(space + 1).trim();
         Response response = new Response();
         response.statusLine = StatusLine.parse(statusLine);
         if (response.statusLine == null)
@@ -286,13 +282,11 @@ public abstract class SimpleBaseClient implements Closeable {
             }
         } while (pos == -1 && read < buf.length);
 
-        if (pos == -1 && read == 0)
-            throw new IOException("closed");
+        if (pos <= 0 || pos > 16)
+            throw new IOException(read == 0 ? "closed" : "Invalid chunk size");
 
-        if (pos >= 0) {
-            mInStream.reset();
-            mInStream.skip(pos);
-        }
+        mInStream.reset();
+        mInStream.skip(pos);
 
         long n = 0;
         for (int i = 0; i < pos; i++) {
@@ -394,15 +388,13 @@ public abstract class SimpleBaseClient implements Closeable {
             }
         } while (pos == -1 && read < buf.length);
 
-        if (pos == -1 && read == 0)
-            throw new IOException("closed");
+        if (pos == -1)
+            throw new IOException(read == 0 ? "closed" : "Line too long");
 
-        if (pos >= 0) {
-            stream.reset();
-            stream.skip(pos + 1);
-            if (pos > 0 && buf[pos - 1] == '\r')
-                pos--;
-        }
+        stream.reset();
+        stream.skip(pos + 1);
+        if (pos > 0 && buf[pos - 1] == '\r')
+            pos--;
         return pos;
     }
 
@@ -423,17 +415,16 @@ public abstract class SimpleBaseClient implements Closeable {
     }
 
     public static void writeFully(ByteBuffer data, OutputStream outputStream) throws IOException {
-        try {
-            outputStream.write(data.array());
-        } catch (UnsupportedOperationException ignored) {
+        if (data.hasArray()) {
+            outputStream.write(data.array(), data.arrayOffset() + data.position(), data.remaining());
+            data.position(data.limit());
+        } else {
             final byte[] buffer = new byte[16384];
-            int ret;
-            do {
-                ret = Math.min(buffer.length, data.remaining());
+            while (data.hasRemaining()) {
+                int ret = Math.min(buffer.length, data.remaining());
                 data.get(buffer, 0, ret);
-                if (ret > 0)
-                    outputStream.write(buffer, 0, ret);
-            } while (data.hasRemaining());
+                outputStream.write(buffer, 0, ret);
+            }
         }
     }
 

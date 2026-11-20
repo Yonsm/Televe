@@ -60,7 +60,7 @@ public class SimpleHttpClient extends SimpleBaseClient {
     @Override
     public int read(byte[] buffer, int offset, int length) throws IOException {
         if (!mChunkTransfer)
-            return readFully(mInStream, buffer, offset, length);
+            return mInStream.read(buffer, offset, length);
 
         if (!mHasMoreChunks)
             return -1;
@@ -71,7 +71,7 @@ public class SimpleHttpClient extends SimpleBaseClient {
                 return -1;
         }
 
-        int bytes = readFully(mInStream, buffer, offset, Math.min(length, mBytesInChunk));
+        int bytes = mInStream.read(buffer, offset, Math.min(length, mBytesInChunk));
         if (bytes == -1)
             throw new IOException("socket closed");
 
@@ -84,10 +84,13 @@ public class SimpleHttpClient extends SimpleBaseClient {
         if (mBytesInChunk != NO_CHUNK_YET)
             readUtf8LineStrictly(mInStream, mLineBuffer);
 
-        mBytesInChunk = (int) readHexadecimalUnsignedLong();
+        long size = readHexadecimalUnsignedLong();
+        if (size < 0 || size > Integer.MAX_VALUE)
+            throw new IOException("Invalid chunk size: " + size);
+        mBytesInChunk = (int) size;
         readUtf8LineStrictly(mInStream, mLineBuffer);
 
-        if (mBytesInChunk == 0L)
+        if (mBytesInChunk == 0)
             mHasMoreChunks = false;
     }
 
