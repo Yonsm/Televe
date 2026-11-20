@@ -502,6 +502,11 @@ public class TvActivity extends ComponentActivity {
                 if (event.getAction() == KeyEvent.ACTION_UP && PanelDialog.isShortPress(event))
                     playNextItem(event.getKeyCode() == KeyEvent.KEYCODE_DPAD_DOWN);
                 return true;
+            case KeyEvent.KEYCODE_CHANNEL_UP:
+            case KeyEvent.KEYCODE_CHANNEL_DOWN:
+                if (event.getAction() == KeyEvent.ACTION_DOWN && event.getRepeatCount() == 0)
+                    playNextItem(event.getKeyCode() == KeyEvent.KEYCODE_CHANNEL_UP);
+                return true;
             default:
                 return false;
         }
