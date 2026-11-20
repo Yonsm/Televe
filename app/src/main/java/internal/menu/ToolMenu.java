@@ -1,98 +1,360 @@
 package internal.menu;
 
 import android.content.Context;
-import android.view.LayoutInflater;
 import android.view.KeyEvent;
+import android.view.LayoutInflater;
 import android.view.Menu;
 import android.view.MenuItem;
 import android.view.View;
 import android.view.ViewGroup;
-import android.view.ViewTreeObserver;
-import android.widget.TextView;
 import android.widget.ImageView;
+import android.widget.TextView;
 
+import androidx.recyclerview.widget.DefaultItemAnimator;
 import androidx.recyclerview.widget.GridLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
 import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
 
+import internal.playlist.Channel;
 import net.yonsm.televe.R;
 
+/** The source column: menu actions plus an auto-grouped, collapsible source list. */
 public final class ToolMenu {
-    public static final int GROUP_PROVIDER = 1;
-
     private ToolMenu() {}
 
-    public static RecyclerView create(Context context, Menu menu, MenuItem.OnMenuItemClickListener action) {
-        ArrayList<MenuItem> items = new ArrayList<>();
-        int selected = 0;
-        for (int i = 0; i < menu.size(); i++) {
-            MenuItem item = menu.getItem(i);
-            if (!item.isVisible()) continue;
-            items.add(item);
-            if (item.getItemId() == R.id.source || item.getGroupId() == GROUP_PROVIDER && item.isChecked()) selected = items.size() - 1;
-        }
+    public interface ProviderListener {
+        void onProviderSelected(Channel provider);
+    }
+
+    public static RecyclerView create(Context context, Menu menu, List<Channel> providers, Channel selected,
+                                      MenuItem.OnMenuItemClickListener action, ProviderListener providerListener) {
         RecyclerView list = new RecyclerView(context);
-        list.setTag(selected);
         list.setBackgroundColor(context.getColor(R.color.drawer_background));
         list.setLayoutManager(new GridLayoutManager(context, 1));
         list.setHasFixedSize(true);
-        list.setItemAnimator(null);
-        list.setVerticalScrollBarEnabled(true);
-        list.setAdapter(new RecyclerView.Adapter<Holder>() {
-            @Override public int getItemCount() { return items.size(); }
-            @Override public Holder onCreateViewHolder(ViewGroup parent, int type) {
-                Holder holder = new Holder(LayoutInflater.from(context).inflate(R.layout.item_channel, parent, false));
-                holder.itemView.setOnClickListener(view -> {
-                    int position = holder.getBindingAdapterPosition();
-                    if (position == RecyclerView.NO_POSITION || !items.get(position).isEnabled()) return;
-                    MenuItem item = items.get(position);
-                    if (item.getGroupId() == GROUP_PROVIDER && !item.isChecked()) {
-                        int previous = (int) list.getTag();
-                        list.setTag(position);
-                        for (MenuItem source : items) if (source.getGroupId() == GROUP_PROVIDER)
-                            source.setCheckable(true).setChecked(source == item);
-                        notifyItemChanged(previous);
-                        notifyItemChanged(position);
-                    }
-                    action.onMenuItemClick(item);
-                });
-                return holder;
-            }
-            @Override public void onBindViewHolder(Holder holder, int position) {
-                MenuItem item = items.get(position);
-                holder.itemView.setTag(item);
-                holder.title.setText(item.getTitle());
-                holder.icon.setImageResource(item.isChecked() ? R.drawable.ic_action_play : 0);
-                holder.title.setEnabled(item.isEnabled());
-                holder.itemView.setEnabled(item.isEnabled());
-                holder.itemView.setFocusable(item.isEnabled());
-            }
-        });
-        focus(list, selected);
+        DefaultItemAnimator animator = new DefaultItemAnimator();
+        animator.setAddDuration(0);
+        animator.setRemoveDuration(0);
+        animator.setMoveDuration(100);
+        animator.setSupportsChangeAnimations(false);
+        list.setItemAnimator(animator);
+        MenuAdapter adapter = new MenuAdapter(context, menu, providers, selected, action, providerListener);
+        list.setAdapter(adapter);
+        adapter.attach(list);
         return list;
     }
 
     public static void focusCurrent(RecyclerView list) {
-        focus(list, (int) list.getTag());
+        MenuAdapter adapter = adapter(list);
+        if (adapter != null) adapter.focusSelected();
     }
 
-    private static void focus(RecyclerView list, int initialFocus) {
-        int itemHeight = list.getResources().getDimensionPixelSize(R.dimen.navigation_item_height);
-        int height = list.getResources().getDisplayMetrics().heightPixels;
-        ((GridLayoutManager) list.getLayoutManager()).scrollToPositionWithOffset(initialFocus,
-                Math.min(initialFocus * itemHeight, Math.max(0, height - itemHeight)));
-        list.getViewTreeObserver().addOnGlobalLayoutListener(new ViewTreeObserver.OnGlobalLayoutListener() {
-            @Override public void onGlobalLayout() {
-                RecyclerView.ViewHolder holder = list.findViewHolderForAdapterPosition(initialFocus);
-                if (list.isAttachedToWindow() && holder == null) {
+    /** Expands a group or selects a source; false for menu actions. */
+    public static boolean activate(RecyclerView list, View itemView) {
+        MenuAdapter adapter = adapter(list);
+        Object tag = itemView == null ? null : itemView.getTag();
+        if (adapter == null || !(tag instanceof Row)) return false;
+        Row row = (Row) tag;
+        if (row.group != null) adapter.expand(row.group);
+        else if (row.provider != null) itemView.performClick();
+        else return false;
+        return true;
+    }
+
+    /** Collapses the focused group or source group; false when there is nothing to collapse. */
+    public static boolean collapse(RecyclerView list) {
+        MenuAdapter adapter = adapter(list);
+        return adapter != null && adapter.collapseFocused();
+    }
+
+    private static MenuAdapter adapter(RecyclerView list) {
+        return list != null && list.getAdapter() instanceof MenuAdapter ? (MenuAdapter) list.getAdapter() : null;
+    }
+
+    private static final class Row {
+        final MenuItem item;
+        final String group;
+        final Channel provider;
+
+        Row(MenuItem item, String group, Channel provider) {
+            this.item = item;
+            this.group = group;
+            this.provider = provider;
+        }
+    }
+
+    private static final class MenuAdapter extends RecyclerView.Adapter<Holder> {
+        private final Context context;
+        private final Menu menu;
+        private final List<Channel> providers;
+        private final MenuItem.OnMenuItemClickListener action;
+        private final ProviderListener providerListener;
+        private final List<Row> rows = new ArrayList<>();
+        private final Map<Channel, String> groupNames = new HashMap<>();
+        private final HashSet<String> expandedGroups = new HashSet<>();
+        private Channel selected;
+        private RecyclerView list;
+
+        MenuAdapter(Context context, Menu menu, List<Channel> providers, Channel selected,
+                    MenuItem.OnMenuItemClickListener action, ProviderListener providerListener) {
+            this.context = context;
+            this.menu = menu;
+            this.providers = new ArrayList<>(providers);
+            this.selected = selected;
+            this.action = action;
+            this.providerListener = providerListener;
+            for (int i = 0, n = this.providers.size(); i < n; ) {
+                String prefix = prefixOf(this.providers.get(i).title);
+                int end = i + 1;
+                if (prefix != null) {
+                    while (end < n && prefix.equals(prefixOf(this.providers.get(end).title))) end++;
+                }
+                if (end - i > 1) {
+                    String common = hanPrefix(this.providers.get(i).title);
+                    for (int k = i + 1; k < end; k++)
+                        common = commonPrefix(common, hanPrefix(this.providers.get(k).title));
+                    for (int k = i; k < end; k++)
+                        groupNames.put(this.providers.get(k), common + '#' + i);
+                }
+                i = end;
+            }
+            if (selected != null) {
+                String group = groupOf(selected);
+                if (!group.isEmpty()) expandedGroups.add(group);
+            }
+            rebuild();
+        }
+
+        void attach(RecyclerView list) {
+            this.list = list;
+            int position = selectedPosition();
+            if (position < 0) return;
+            ((GridLayoutManager) list.getLayoutManager()).scrollToPositionWithOffset(position, 0);
+            focus(position);
+        }
+
+        @Override public int getItemCount() { return rows.size(); }
+
+        @Override public Holder onCreateViewHolder(ViewGroup parent, int viewType) {
+            Holder holder = new Holder(LayoutInflater.from(context).inflate(R.layout.item_channel, parent, false));
+            holder.itemView.setOnClickListener(view -> {
+                if (view.getTag() instanceof Row) click((Row) view.getTag());
+            });
+            return holder;
+        }
+
+        private void click(Row row) {
+            if (row.item != null) {
+                if (row.item.isEnabled()) action.onMenuItemClick(row.item);
+            } else if (row.group != null) {
+                toggle(row.group);
+            } else {
+                selected = row.provider;
+                notifyDataSetChanged();
+                providerListener.onProviderSelected(row.provider);
+            }
+        }
+
+        @Override public void onBindViewHolder(Holder holder, int position) {
+            Row row = rows.get(position);
+            float density = context.getResources().getDisplayMetrics().density;
+            int start = (int) (16 * density);
+            int end = (int) (2 * density);
+            holder.itemView.setTag(row);
+            holder.itemView.setEnabled(true);
+            holder.itemView.setFocusable(true);
+            holder.title.setEnabled(true);
+            holder.icon.setRotation(0);
+            int indent = start;
+            if (row.item != null) {
+                holder.title.setText(row.item.getTitle());
+                holder.icon.setImageResource(row.item.isChecked() ? R.drawable.ic_action_play : 0);
+                holder.title.setEnabled(row.item.isEnabled());
+                holder.itemView.setEnabled(row.item.isEnabled());
+                holder.itemView.setFocusable(row.item.isEnabled());
+            } else if (row.group != null) {
+                holder.title.setText(groupName(row.group) + "分组");
+                holder.icon.setImageResource(R.drawable.ic_panel_arrow);
+                holder.icon.setRotation(expandedGroups.contains(row.group) ? 90f : 0f);
+            } else {
+                String name = groupName(groupOf(row.provider));
+                String title = row.provider.title;
+                if (!name.isEmpty() && title.startsWith(name)) title = title.substring(name.length());
+                if (title.isEmpty()) title = row.provider.title;
+                holder.title.setText(title);
+                holder.icon.setImageResource(row.provider.equals(selected) ? R.drawable.ic_action_play : 0);
+                if (!name.isEmpty()) indent += (int) holder.title.getTextSize();
+            }
+            holder.itemView.setPaddingRelative(indent, holder.itemView.getPaddingTop(), end,
+                    holder.itemView.getPaddingBottom());
+        }
+
+        private void rebuild() {
+            rows.clear();
+            for (int i = 0; i < menu.size(); i++) {
+                MenuItem item = menu.getItem(i);
+                if (item.isVisible()) rows.add(new Row(item, null, null));
+            }
+            HashSet<String> groups = new HashSet<>();
+            for (Channel provider : providers) {
+                String group = groupOf(provider);
+                if (group.isEmpty()) {
+                    rows.add(new Row(null, null, provider));
+                    continue;
+                }
+                if (groups.add(group)) rows.add(new Row(null, group, null));
+                if (expandedGroups.contains(group)) rows.add(new Row(null, null, provider));
+            }
+            notifyDataSetChanged();
+        }
+
+        private void toggle(String group) {
+            if (expandedGroups.remove(group)) {
+                setExpandedRows(group, false);
+            } else {
+                expandedGroups.add(group);
+                setExpandedRows(group, true);
+            }
+            list.postDelayed(() -> revealGroup(group), 100);
+        }
+
+        private void expand(String group) {
+            if (expandedGroups.add(group)) setExpandedRows(group, true);
+            list.postDelayed(() -> {
+                revealGroup(group);
+                focus(indexOf(group, true));
+            }, 100);
+        }
+
+        private void setExpandedRows(String group, boolean expanded) {
+            int start = indexOf(group, false);
+            if (start < 0) return;
+            if (expanded) {
+                int end = start + 1;
+                for (Channel provider : providers) {
+                    if (group.equals(groupOf(provider))) rows.add(end++, new Row(null, null, provider));
+                }
+                notifyItemRangeInserted(start + 1, end - start - 1);
+            } else {
+                int end = start + 1;
+                while (end < rows.size() && rows.get(end).provider != null
+                        && group.equals(groupOf(rows.get(end).provider))) end++;
+                rows.subList(start + 1, end).clear();
+                notifyItemRangeRemoved(start + 1, end - start - 1);
+            }
+            notifyItemChanged(start);
+        }
+
+        private void revealGroup(String group) {
+            int position = indexOf(group, true);
+            if (position < 0) return;
+            View child = list.getLayoutManager().findViewByPosition(position);
+            if (child != null && child.getTop() < list.getHeight() && child.getBottom() > 0) return;
+            list.scrollToPosition(position);
+        }
+
+        void focusSelected() {
+            if (selected != null) {
+                String group = groupOf(selected);
+                if (!group.isEmpty() && expandedGroups.add(group)) rebuild();
+            }
+            focus(selectedPosition());
+        }
+
+        boolean collapseFocused() {
+            View focused = list == null ? null : list.findFocus();
+            Object tag = focused == null ? null : focused.getTag();
+            if (!(tag instanceof Row)) return false;
+            Row row = (Row) tag;
+            String group = row.group != null ? row.group
+                    : row.provider == null ? "" : groupOf(row.provider);
+            if (group.isEmpty() || !expandedGroups.contains(group)) return false;
+            int start = indexOf(group, false);
+            if (start < 0) return false;
+            int end = start + 1;
+            while (end < rows.size() && rows.get(end).provider != null
+                    && group.equals(groupOf(rows.get(end).provider))) end++;
+            RecyclerView.ViewHolder holder = list.findViewHolderForAdapterPosition(start);
+            if (holder != null) holder.itemView.requestFocus();
+            expandedGroups.remove(group);
+            rows.subList(start + 1, end).clear();
+            notifyItemRangeRemoved(start + 1, end - start - 1);
+            notifyItemChanged(start);
+            if (holder == null) focus(start);
+            return true;
+        }
+
+        private String groupOf(Channel provider) {
+            String group = groupNames.get(provider);
+            return group == null ? "" : group;
+        }
+
+        private int selectedPosition() {
+            int fallback = rows.isEmpty() ? -1 : 0;
+            for (int i = 0; i < rows.size(); i++) {
+                Row row = rows.get(i);
+                if (row.item != null && row.item.getItemId() == R.id.source) fallback = i;
+                if (row.provider != null && selected != null && selected.equals(row.provider)) return i;
+            }
+            return fallback;
+        }
+
+        private int indexOf(String group, boolean provider) {
+            for (int i = 0; i < rows.size(); i++) {
+                Row row = rows.get(i);
+                if (provider ? row.provider != null && group.equals(groupOf(row.provider))
+                        : row.group != null && row.group.equals(group)) return i;
+            }
+            return -1;
+        }
+
+        private void focus(int position) {
+            if (list == null || position < 0 || position >= rows.size()) return;
+            list.post(() -> {
+                RecyclerView.ViewHolder holder = list.findViewHolderForAdapterPosition(position);
+                if (holder != null) {
+                    holder.itemView.requestFocus();
                     return;
                 }
-                list.getViewTreeObserver().removeOnGlobalLayoutListener(this);
-                if (list.isAttachedToWindow() && holder != null) holder.itemView.requestFocusFromTouch();
-            }
-        });
-        list.requestLayout();
+                list.scrollToPosition(position);
+                list.post(() -> {
+                    RecyclerView.ViewHolder target = list.findViewHolderForAdapterPosition(position);
+                    if (target != null) target.itemView.requestFocus();
+                });
+            });
+        }
+    }
+
+    private static String groupName(String key) {
+        int index = key.lastIndexOf('#');
+        return index < 0 ? key : key.substring(0, index);
+    }
+
+    private static String prefixOf(String title) {
+        String han = hanPrefix(title);
+        return han.length() >= 2 ? han.substring(0, 2) : null;
+    }
+
+    private static String hanPrefix(String title) {
+        if (title == null) return "";
+        int length = 0;
+        while (length < title.length() && isHan(title.charAt(length))) length++;
+        return title.substring(0, length);
+    }
+
+    private static String commonPrefix(String first, String second) {
+        int length = 0, max = Math.min(first.length(), second.length());
+        while (length < max && first.charAt(length) == second.charAt(length)) length++;
+        return first.substring(0, length);
+    }
+
+    private static boolean isHan(char c) {
+        return c >= 0x4E00 && c <= 0x9FFF || c >= 0x3400 && c <= 0x4DBF;
     }
 
     private static class Holder extends RecyclerView.ViewHolder {
@@ -101,11 +363,10 @@ public final class ToolMenu {
 
         Holder(View view) {
             super(view);
-            float density = view.getResources().getDisplayMetrics().density;
-            view.setPaddingRelative((int) (16 * density), view.getPaddingTop(), (int) (2 * density), view.getPaddingBottom());
-            icon = view.findViewById(R.id.icon);
-            ((ViewGroup.MarginLayoutParams) icon.getLayoutParams()).setMarginEnd((int) (2 * density));
             view.findViewById(R.id.number).setVisibility(View.GONE);
+            icon = view.findViewById(R.id.icon);
+            ((ViewGroup.MarginLayoutParams) icon.getLayoutParams()).setMarginEnd(
+                    (int) (2 * view.getResources().getDisplayMetrics().density));
             view.setOnLongClickListener(ignored -> true);
             title = view.findViewById(R.id.title);
             view.setOnFocusChangeListener((ignored, focused) -> title.setSelected(focused));

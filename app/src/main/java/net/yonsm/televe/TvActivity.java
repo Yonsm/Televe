@@ -655,7 +655,7 @@ public class TvActivity extends ComponentActivity {
         if (key == KeyEvent.KEYCODE_DPAD_LEFT) mRevealCurrentChannel = false;
         if (mSourceMenu != null && mSourceMenu.hasFocus()) {
             if (key == KeyEvent.KEYCODE_DPAD_LEFT) {
-                if (event.getRepeatCount() == 0) mChannelPanel.dismiss();
+                if (event.getRepeatCount() == 0 && !ToolMenu.collapse(mSourceMenu)) mChannelPanel.dismiss();
                 return true;
             }
             if (event.getRepeatCount() > 0) return true;
@@ -663,10 +663,7 @@ public class TvActivity extends ComponentActivity {
                 showPanel(1);
                 return true;
             }
-            View source = mSourceMenu.getFocusedChild();
-            if (source != null && source.getTag() instanceof MenuItem
-                    && ((MenuItem) source.getTag()).getGroupId() == ToolMenu.GROUP_PROVIDER) source.performClick();
-            else focusCurrentChannel();
+            if (!ToolMenu.activate(mSourceMenu, mSourceMenu.getFocusedChild())) focusCurrentChannel();
             return true;
         }
         if (mChannelList.size() == 0 && key == KeyEvent.KEYCODE_DPAD_LEFT) {
@@ -1064,7 +1061,7 @@ public class TvActivity extends ComponentActivity {
     }
 
     private void showPanel(int mode) {
-        if (mChannelPanel.isShowing() && mPanelMode == 2 && mode == 1 && mRootView.getWidth() < 458 * mDensity)
+        if (mChannelPanel.isShowing() && mPanelMode == 2 && mode == 1 && mRootView.getWidth() < 474 * mDensity)
             TransitionManager.beginDelayedTransition(mChannelContent, new ChangeBounds().addTarget(mChannelMenu).setDuration(100)
                     .setInterpolator(new android.view.animation.DecelerateInterpolator()));
         boolean expandingMenu = mChannelPanel.isShowing() && mPanelMode == 0 && mode == 1;
@@ -1085,15 +1082,8 @@ public class TvActivity extends ComponentActivity {
             menu.findItem(R.id.aspect_ratio).setEnabled(mChannel != null);
             if (Build.VERSION.SDK_INT < Build.VERSION_CODES.N) menu.removeItem(R.id.snapshot);
             else mSnapshotItem = menu.findItem(R.id.snapshot).setEnabled(canSnapshot());
-            int id = 0;
-            for (Channel bean : mProviderList) {
-                boolean checked = bean.equals(mCurrentFolder);
-                menu.add(ToolMenu.GROUP_PROVIDER, id++, Menu.NONE, bean.title).setCheckable(checked).setChecked(checked);
-            }
-            mSourceMenu = ToolMenu.create(this, menu, item -> {
-                if (item.getGroupId() == ToolMenu.GROUP_PROVIDER) {
-                    selectProvider(item.getItemId());
-                } else if (item.getItemId() == R.id.aspect_ratio) {
+            mSourceMenu = ToolMenu.create(this, menu, mProviderList, mCurrentFolder, item -> {
+                if (item.getItemId() == R.id.aspect_ratio) {
                     mChannelPanel.dismiss();
                     showAspectRatio();
                 } else if (item.getItemId() == R.id.source) {
@@ -1108,7 +1098,7 @@ public class TvActivity extends ComponentActivity {
                     showChannelInfo();
                 }
                 return true;
-            });
+            }, this::selectProvider);
             mChannelContent.addView(mSourceMenu, 0);
         }
         layoutChannelPanel(mRootView.getWidth());
@@ -1120,6 +1110,11 @@ public class TvActivity extends ComponentActivity {
             mPanelContainer.setTranslationX(previousWidth - width);
             mPanelContainer.animate().translationX(0).setDuration(70);
         }
+    }
+
+    private void selectProvider(Channel provider) {
+        int index = mProviderList.indexOf(provider);
+        if (index >= 0) selectProvider(index);
     }
 
     private void selectProvider(int index) {
@@ -1167,8 +1162,8 @@ public class TvActivity extends ComponentActivity {
     }
 
     private void layoutChannelPanel(int availableWidth) {
-        int menuWidth = (int) (132 * mDensity);
-        int columns = mSourceMenu == null || availableWidth >= 458 * mDensity ? 2 : 1;
+        int menuWidth = (int) (148 * mDensity);
+        int columns = mSourceMenu == null || availableWidth >= 474 * mDensity ? 2 : 1;
         int width = mSourceMenu == null ? mPanelWidth : (int) ((columns == 2 ? 326 : 163) * mDensity);
         ((GridLayoutManager) mChannelMenu.getLayoutManager()).setSpanCount(columns);
         mChannelContent.getChildAt(mChannelContent.getChildCount() - 1).setLayoutParams(
