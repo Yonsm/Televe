@@ -25,8 +25,8 @@ import internal.utils.PrefUtils;
 
 /** Caches each list until it is explicitly refreshed. */
 public class PlaylistRepository implements AutoCloseable {
-    public static final String DEFAULT_URL = "https://yonsm.github.io/IPTV/lists.m3u8";
-    private static final String LOCAL_URL = "http://192.168.1.1:84/lists.m3u";
+    public static final String DEFAULT_URL = "https://yonsm.github.io/IPTV/lists.txt";
+    private static final String LOCAL_URL = "http://192.168.1.1:84/lists.txt";
     private final ExecutorService executor = Executors.newSingleThreadExecutor();
     private final File directory;
     private final AtomicInteger requestVersion = new AtomicInteger();

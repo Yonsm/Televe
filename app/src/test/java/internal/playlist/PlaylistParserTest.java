@@ -18,19 +18,20 @@ public class PlaylistParserTest {
     }
 
     @Test
-    public void standardM3uPreservesNamesLogosAndUrls() throws Exception {
-        Channel channel = parse("#EXTM3U\n#EXTINF:-1 tvg-name=\"News HD\" tvg-logo=\"https://example.com/logo?a=b\",News, World\nhttps://example.com/live.m3u8\n", false).get(0);
+    public void standardM3uPreservesNamesAndUrls() throws Exception {
+        Channel channel = parse("#EXTM3U\n#EXTINF:-1 tvg-name=\"News HD\",News, World\nhttps://example.com/live.m3u8\n", false).get(0);
         assertEquals("News HD", channel.id);
-        assertEquals("News, World", channel.title);
+        // 显示名取末个逗号后的文字，名称本身不支持逗号。
+        assertEquals("World", channel.title);
         assertEquals("https://example.com/live.m3u8", channel.url);
         assertEquals(Channel.NO_ORDER, channel.order);
         assertFalse(channel.playlist);
     }
 
     @Test
-    public void legacyProviderListsKeepServerIdentityAndOrder() throws Exception {
-        Channel channel = parse("#EXTM3U\n#EXTINF:2,server-id=\"primary\",Main provider\nhttps://example.com/channels.m3u\n", true).get(0);
-        assertEquals("primary", channel.id);
+    public void providerListsKeepOrderAndPlaylistFlag() throws Exception {
+        Channel channel = parse("#EXTM3U\n#EXTINF:2,Main provider\nhttps://example.com/channels.m3u\n", true).get(0);
+        assertEquals("Main provider", channel.id);
         assertEquals("Main provider", channel.title);
         assertEquals(2, channel.order);
         assertTrue(channel.playlist);

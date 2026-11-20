@@ -14,29 +14,40 @@ import java.util.regex.Pattern;
 
 import io.library.net.HttpClient;
 
-/** Reads M3U playlists and comma-separated channel lists. */
+/** Reads M3U channel lists and TXT source directories. */
 public class PlaylistParser implements HttpClient.Parser<List<Channel>> {
     private static final Pattern ATTRIBUTE = Pattern.compile("([\\w-]+)=(?:\"([^\"]*)\"|([^\\s,]+))");
+    private static final int MAX_LOAD_DEPTH = 2;
     private final boolean providers;
     private final String defaultBaseUrl;
+    private final int depth;
 
     public PlaylistParser(boolean providers) {
-        this(providers, null);
+        this(providers, null, 0);
     }
 
     public PlaylistParser(boolean providers, String baseUrl) {
+        this(providers, baseUrl, 0);
+    }
+
+    private PlaylistParser(boolean providers, String baseUrl, int depth) {
         this.providers = providers;
         this.defaultBaseUrl = baseUrl;
+        this.depth = depth;
     }
 
     public List<Channel> onParse(String mimeType, String charset, InputStream stream, boolean fromCache) throws Exception {
+        return parse(stream, charset);
+    }
+
+    private List<Channel> parse(InputStream stream, String charset) throws Exception {
         BufferedReader reader = new BufferedReader(new InputStreamReader(stream,
                 Channel.isEmpty(charset) ? "UTF-8" : charset));
         List<Channel> result = new ArrayList<>();
         String baseUrl = defaultBaseUrl;
         String line;
         boolean hasM3uHeader = false;
-        PendingEntry pending = null;
+        Channel pending = null;
         while ((line = reader.readLine()) != null) {
             line = line.replace("\uFEFF", "").trim();
             if (line.isEmpty()) continue;
@@ -45,6 +56,20 @@ public class PlaylistParser implements HttpClient.Parser<List<Channel>> {
                 hasM3uHeader = true;
             } else if (line.startsWith("#BASE:")) {
                 baseUrl = line.substring(6).trim();
+            } else if (line.startsWith("#LOAD:") || line.startsWith("#http")) {
+                boolean load = line.startsWith("#LOAD:");
+                String target = load ? line.substring(6).trim() : line.substring(1);
+                if (!load && target.endsWith("/")) {
+                    // 旧写法：以目录结尾的 #http 地址作为后续相对地址的前缀。
+                    baseUrl = target;
+                } else if (depth < MAX_LOAD_DEPTH) {
+                    try {
+                        List<Channel> included = HttpClient.get(target,
+                                new PlaylistParser(providers, null, depth + 1));
+                        result.addAll(included);
+                    } catch (Exception ignored) {
+                    }
+                }
             } else if (line.startsWith("#EXTINF:")) {
                 pending = parseInfo(line.substring(8));
             } else if (!line.startsWith("#")) {
@@ -54,13 +79,12 @@ public class PlaylistParser implements HttpClient.Parser<List<Channel>> {
                 if (pending != null || comma < 0 || hasM3uHeader &&
                         ((scheme >= 0 && scheme < comma) || (query >= 0 && query < comma))) {
                     if (pending == null && !hasM3uHeader) continue;
-                    Channel channel = pending != null ? pending.channel : new Channel();
+                    Channel channel = pending != null ? pending : new Channel();
                     channel.url = line;
                     if (Channel.isEmpty(channel.title)) channel.title = line;
                     if (Channel.isEmpty(channel.id)) channel.id = channel.title;
                     channel.playlist = providers;
                     channel.baseUrl = Channel.isEmpty(baseUrl) ? "" : baseUrl;
-                    channel.playlistSource = (pending != null && pending.playlist) || isPlaylistUrl(channel.url);
                     result.add(channel);
                     pending = null;
                 } else {
@@ -80,7 +104,6 @@ public class PlaylistParser implements HttpClient.Parser<List<Channel>> {
                     channel.id = channel.title;
                     channel.playlist = providers;
                     channel.baseUrl = Channel.isEmpty(baseUrl) ? "" : baseUrl;
-                    channel.playlistSource = isPlaylistUrl(channel.url);
                     result.add(channel);
                 }
             }
@@ -97,7 +120,7 @@ public class PlaylistParser implements HttpClient.Parser<List<Channel>> {
 
     @Override
     public List<Channel> onParse(String url, String mimeType, String charset, InputStream stream, boolean fromCache) throws Exception {
-        List<Channel> channels = onParse(mimeType, charset, stream, fromCache);
+        List<Channel> channels = parse(stream, charset);
         for (int i = channels.size() - 1; i >= 0; i--) {
             try {
                 Channel channel = channels.get(i);
@@ -125,23 +148,15 @@ public class PlaylistParser implements HttpClient.Parser<List<Channel>> {
         return channels;
     }
 
+    /** A .lst document, or a lists.txt named one, is a source directory. */
     static void classifySources(String url, List<Channel> channels, boolean providers) {
         if (!providers) return;
         String document = url.split("[?#]", 2)[0].toLowerCase(java.util.Locale.US);
-        boolean namedDirectory = document.endsWith("/lists.m3u8");
-        boolean directory = namedDirectory;
-        for (Channel channel : channels) {
-            channel.playlistSource |= isPlaylistUrl(channel.url);
-            directory |= channel.playlistSource;
-        }
-        if (directory) {
-            for (Channel channel : channels) {
-                channel.playlistSource |= namedDirectory || urlPath(channel.url).endsWith(".m3u8");
-            }
-        }
+        if (!document.endsWith(".lst") && !document.endsWith("/lists.txt")) return;
+        for (Channel channel : channels) channel.playlistSource = true;
     }
 
-    private PendingEntry parseInfo(String info) {
+    private Channel parseInfo(String info) {
         Channel channel = new Channel();
         Map<String, String> attributes = new HashMap<>();
         int comma = info.lastIndexOf(',');
@@ -153,29 +168,8 @@ public class PlaylistParser implements HttpClient.Parser<List<Channel>> {
         String first = info.trim().split("[\\s,]", 2)[0];
         channel.order = parseOrder(first);
         channel.id = attributes.get("tvg-name");
-        if (Channel.isEmpty(channel.id)) channel.id = attributes.get("server-id");
         if (Channel.isEmpty(channel.id)) channel.id = attributes.get("tvg-id");
-        boolean playlist = attributes.containsKey("server-id");
-        return new PendingEntry(channel, playlist);
-    }
-
-    private static boolean isPlaylistUrl(String url) {
-        String lower = urlPath(url);
-        return lower.endsWith(".m3u") || lower.endsWith(".txt") || lower.endsWith(".csv");
-    }
-
-    private static String urlPath(String url) {
-        return url.split("[?#]", 2)[0].toLowerCase(java.util.Locale.US);
-    }
-
-    private static final class PendingEntry {
-        final Channel channel;
-        final boolean playlist;
-
-        PendingEntry(Channel channel, boolean playlist) {
-            this.channel = channel;
-            this.playlist = playlist;
-        }
+        return channel;
     }
 
     private static int parseOrder(String value) {
