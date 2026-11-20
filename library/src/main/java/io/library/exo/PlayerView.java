@@ -479,6 +479,8 @@ public class PlayerView extends FrameLayout {
 
     private DataSource.Factory buildSourceFactory(Uri uri) {
         String scheme = uri.getScheme();
+        if (isMulticastUri(uri))
+            return new MulticastDataSource.Factory(getContext());
         if ("rtsp".equalsIgnoreCase(scheme) || "rtsps".equalsIgnoreCase(scheme)
                 || "http".equalsIgnoreCase(scheme) || "https".equalsIgnoreCase(scheme))
             return new ClientDataSource.DefaultFactory(null);
@@ -498,8 +500,9 @@ public class PlayerView extends FrameLayout {
             builder.setMimeType(MimeTypes.APPLICATION_M3U8);
         } else if (type == C.CONTENT_TYPE_DASH) {
             builder.setMimeType(MimeTypes.APPLICATION_MPD);
-        } else if ("rtsp".equalsIgnoreCase(uri.getScheme()) || "rtsps".equalsIgnoreCase(uri.getScheme())) {
-            // The custom RTSP transport returns TS, which the progressive extractor consumes.
+        } else if (isMulticastUri(uri) || "rtsp".equalsIgnoreCase(uri.getScheme())
+                || "rtsps".equalsIgnoreCase(uri.getScheme())) {
+            // RTSP 与 IPTV 组播都以 TS 承载，直接按 TS 解复用。
             builder.setMimeType(MimeTypes.VIDEO_MP2T);
         }
 
@@ -518,5 +521,11 @@ public class PlayerView extends FrameLayout {
     public static boolean isWebUri(Uri uri) {
         final String scheme = uri != null ? uri.getScheme() : "";
         return "http".equalsIgnoreCase(scheme) || "https".equalsIgnoreCase(scheme);
+    }
+
+    public static boolean isMulticastUri(Uri uri) {
+        final String scheme = uri != null ? uri.getScheme() : "";
+        return "rtp".equalsIgnoreCase(scheme) || "igmp".equalsIgnoreCase(scheme)
+                || "udp".equalsIgnoreCase(scheme);
     }
 }
