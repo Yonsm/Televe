@@ -728,7 +728,9 @@ public class TvActivity extends ComponentActivity {
         Channel channel = mChannelList.get(index);
         if (channel == null)
             return;
-        if (Channel.equals(channel, mChannel) && Channel.equals(mPlaybackUrl, channel.url)) return;
+        if (Channel.equals(channel, mChannel) && Channel.equals(mPlaybackUrl, channel.url)
+                && mPlaybackFailures == 0 && mLastState != PlayerView.State.IDLE
+                && mLastState != PlayerView.State.ENDED) return;
 
         resetPlaybackFailures();
         mOpenedExternally = false;
@@ -1267,7 +1269,7 @@ public class TvActivity extends ComponentActivity {
             holder.itemView.setPaddingRelative((int) ((mSourceMenu == null && position % 2 == 0 ? 16 : 2) * mDensity),
                     holder.itemView.getPaddingTop(), (int) (2 * mDensity), holder.itemView.getPaddingBottom());
             holder.channel = mChannelList.get(position);
-            holder.update(holder.channel == mChannel);
+            holder.update(Channel.equals(holder.channel, mChannel));
         }
     };
 
