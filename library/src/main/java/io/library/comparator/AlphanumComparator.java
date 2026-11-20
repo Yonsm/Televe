@@ -16,33 +16,17 @@ public class AlphanumComparator extends StringComparator {
 			int result;
 
 			if (d1 && d2) {
-				// If both chunks contain numeric characters, sort them numerically
-				long n1 = c1 - '0';
-				long n2 = c2 - '0';
-				int p1 = pos1++;
-				int p2 = pos2++;
-				while (pos1 < len1) {
-					c1 = s1.charAt(pos1);
-					if (c1 < '0' || c1 > '9')
-						break;
-					pos1++;
-					n1 = n1 * 10 + (c1 - '0');
-				}
-				while (pos2 < len2) {
-					c2 = s2.charAt(pos2);
-					if (c2 < '0' || c2 > '9')
-						break;
-					pos2++;
-					n2 = n2 * 10 + (c2 - '0');
-				}
-				if (n1 == n2) {
-					// Same number value, check with is longer (more leading zeros, Microsoft Windows's sort mode)
-					int sub1 = pos1 - p1;
-					int sub2 = pos2 - p2;
-					result = sub1 == sub2 ? 0 : sub2 - sub1;
-				} else {
-					result = n1 < n2 ? -1 : 1;
-				}
+				// Compare numeric chunks without long overflow
+				int p1 = pos1, p2 = pos2;
+				while (pos1 < len1 && s1.charAt(pos1) == '0') pos1++;
+				while (pos2 < len2 && s2.charAt(pos2) == '0') pos2++;
+				int nz1 = pos1, nz2 = pos2;
+				while (pos1 < len1 && s1.charAt(pos1) >= '0' && s1.charAt(pos1) <= '9') pos1++;
+				while (pos2 < len2 && s2.charAt(pos2) >= '0' && s2.charAt(pos2) <= '9') pos2++;
+				result = (pos1 - nz1) - (pos2 - nz2);
+				for (int i = 0; result == 0 && i < pos1 - nz1; i++)
+					result = s1.charAt(nz1 + i) - s2.charAt(nz2 + i);
+				if (result == 0) result = (pos2 - p2) - (pos1 - p1);
 			} else if (c1 == c2) {
 				// Equals
 				result = 0;
