@@ -126,18 +126,20 @@ public class PlaylistParser implements HttpClient.Parser<List<Channel>> {
                 Channel channel = channels.get(i);
                 String baseUrl = channel.baseUrl;
                 URI base = URI.create(url);
+                String document = base.toString().split("[?#]", 2)[0];
                 boolean template = !Channel.isEmpty(baseUrl) && baseUrl.contains("{}");
                 if (!Channel.isEmpty(baseUrl)) {
                     String value = template ? baseUrl.replace("{}", "%7B%7D")
-                            : baseUrl.endsWith("/") ? baseUrl : baseUrl + "/";
-                    baseUrl = base.resolve(value).toString().replace("%7B%7D", "{}");
+                            : baseUrl.endsWith("/") || baseUrl.startsWith("?") ? baseUrl : baseUrl + "/";
+                    baseUrl = (value.startsWith("?") ? document + value : base.resolve(value).toString()).replace("%7B%7D", "{}");
                     if (providers) channel.baseUrl = baseUrl;
-                    if (!template) base = URI.create(baseUrl);
+                    if (!template) {
+                        base = URI.create(baseUrl);
+                        document = base.toString().split("[?#]", 2)[0];
+                    }
                 }
-                String document = base.toString().split("[?#]", 2)[0];
-                if (template && !URI.create(channel.url).isAbsolute() && !channel.url.startsWith("//")) {
+                if (template && !channel.url.contains("://") && !channel.url.startsWith("//"))
                     channel.url = baseUrl.replace("{}", channel.url);
-                }
                 channel.url = channel.url.startsWith("?") ? document + channel.url : base.resolve(channel.url).toString();
                 if (!providers) channel.baseUrl = "";
             } catch (IllegalArgumentException invalid) {
