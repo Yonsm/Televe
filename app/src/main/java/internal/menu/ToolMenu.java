@@ -15,10 +15,8 @@ import androidx.recyclerview.widget.GridLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Map;
 
 import internal.playlist.Channel;
 import net.yonsm.televe.R;
@@ -95,7 +93,6 @@ public final class ToolMenu {
         private final MenuItem.OnMenuItemClickListener action;
         private final ProviderListener providerListener;
         private final List<Row> rows = new ArrayList<>();
-        private final Map<Channel, String> groupNames = new HashMap<>();
         private final HashSet<String> expandedGroups = new HashSet<>();
         private Channel selected;
         private RecyclerView list;
@@ -108,21 +105,6 @@ public final class ToolMenu {
             this.selected = selected;
             this.action = action;
             this.providerListener = providerListener;
-            for (int i = 0, n = this.providers.size(); i < n; ) {
-                String prefix = prefixOf(this.providers.get(i).title);
-                int end = i + 1;
-                if (prefix != null) {
-                    while (end < n && prefix.equals(prefixOf(this.providers.get(end).title))) end++;
-                }
-                if (end - i > 1) {
-                    String common = hanPrefix(this.providers.get(i).title);
-                    for (int k = i + 1; k < end; k++)
-                        common = commonPrefix(common, hanPrefix(this.providers.get(k).title));
-                    for (int k = i; k < end; k++)
-                        groupNames.put(this.providers.get(k), common + '#' + i);
-                }
-                i = end;
-            }
             if (selected != null) {
                 String group = groupOf(selected);
                 if (!group.isEmpty()) expandedGroups.add(group);
@@ -178,17 +160,14 @@ public final class ToolMenu {
                 holder.itemView.setEnabled(row.item.isEnabled());
                 holder.itemView.setFocusable(row.item.isEnabled());
             } else if (row.group != null) {
-                holder.title.setText(groupName(row.group) + "分组");
+                holder.title.setText(row.group);
                 holder.icon.setImageResource(R.drawable.ic_panel_arrow);
                 holder.icon.setRotation(expandedGroups.contains(row.group) ? 90f : 0f);
             } else {
-                String name = groupName(groupOf(row.provider));
-                String title = row.provider.title;
-                if (!name.isEmpty() && title.startsWith(name)) title = title.substring(name.length());
-                if (title.isEmpty()) title = row.provider.title;
-                holder.title.setText(title);
+                String group = groupOf(row.provider);
+                holder.title.setText(Channel.trimPrefix(row.provider.title, group));
                 holder.icon.setImageResource(row.provider.equals(selected) ? R.drawable.ic_action_play : 0);
-                if (!name.isEmpty()) indent += (int) holder.title.getTextSize();
+                if (!group.isEmpty()) indent += (int) holder.title.getTextSize();
             }
             holder.itemView.setPaddingRelative(indent, holder.itemView.getPaddingTop(), end,
                     holder.itemView.getPaddingBottom());
@@ -290,8 +269,7 @@ public final class ToolMenu {
         }
 
         private String groupOf(Channel provider) {
-            String group = groupNames.get(provider);
-            return group == null ? "" : group;
+            return Channel.isEmpty(provider.group) ? "" : provider.group;
         }
 
         private int selectedPosition() {
@@ -328,33 +306,6 @@ public final class ToolMenu {
                 });
             });
         }
-    }
-
-    private static String groupName(String key) {
-        int index = key.lastIndexOf('#');
-        return index < 0 ? key : key.substring(0, index);
-    }
-
-    private static String prefixOf(String title) {
-        String han = hanPrefix(title);
-        return han.length() >= 2 ? han.substring(0, 2) : null;
-    }
-
-    private static String hanPrefix(String title) {
-        if (title == null) return "";
-        int length = 0;
-        while (length < title.length() && isHan(title.charAt(length))) length++;
-        return title.substring(0, length);
-    }
-
-    private static String commonPrefix(String first, String second) {
-        int length = 0, max = Math.min(first.length(), second.length());
-        while (length < max && first.charAt(length) == second.charAt(length)) length++;
-        return first.substring(0, length);
-    }
-
-    private static boolean isHan(char c) {
-        return c >= 0x4E00 && c <= 0x9FFF || c >= 0x3400 && c <= 0x4DBF;
     }
 
     private static class Holder extends RecyclerView.ViewHolder {

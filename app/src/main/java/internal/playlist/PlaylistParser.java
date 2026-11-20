@@ -45,6 +45,7 @@ public class PlaylistParser implements HttpClient.Parser<List<Channel>> {
                 Channel.isEmpty(charset) ? "UTF-8" : charset));
         List<Channel> result = new ArrayList<>();
         String baseUrl = defaultBaseUrl;
+        String genre = "";
         String line;
         boolean hasM3uHeader = false;
         Channel pending = null;
@@ -85,14 +86,19 @@ public class PlaylistParser implements HttpClient.Parser<List<Channel>> {
                     if (Channel.isEmpty(channel.id)) channel.id = channel.title;
                     channel.playlist = providers;
                     channel.baseUrl = Channel.isEmpty(baseUrl) ? "" : baseUrl;
+                    channel.group = genre;
                     result.add(channel);
                     pending = null;
                 } else {
-                    if (comma <= 0 || comma == line.length() - 1) continue;
+                    if (comma < 0 || comma == line.length() - 1) continue;
                     Channel channel = new Channel();
                     channel.title = line.substring(0, comma).trim();
                     channel.url = line.substring(comma + 1).trim();
-                    if (channel.title.isEmpty() || channel.url.isEmpty() || "#genre#".equals(channel.url)) continue;
+                    if ("#genre#".equals(channel.url)) {
+                        genre = channel.title;
+                        continue;
+                    }
+                    if (channel.title.isEmpty() || channel.url.isEmpty()) continue;
                     int dash = channel.title.indexOf('-');
                     if (dash > 0) {
                         int order = parseOrder(channel.title.substring(0, dash));
@@ -104,6 +110,7 @@ public class PlaylistParser implements HttpClient.Parser<List<Channel>> {
                     channel.id = channel.title;
                     channel.playlist = providers;
                     channel.baseUrl = Channel.isEmpty(baseUrl) ? "" : baseUrl;
+                    channel.group = genre;
                     result.add(channel);
                 }
             }

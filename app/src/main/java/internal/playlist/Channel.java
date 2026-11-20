@@ -21,6 +21,7 @@ public class Channel implements Parcelable {
     public long number = -1;
     public boolean playlist;
     public boolean playlistSource;
+    public String group = "";
 
     public Channel() {}
 
@@ -32,6 +33,7 @@ public class Channel implements Parcelable {
         number = in.readLong();
         playlist = in.readBoolean();
         playlistSource = in.readBoolean();
+        group = in.readUTF();
     }
 
     public static Channel fromUrl(String url) {
@@ -49,10 +51,21 @@ public class Channel implements Parcelable {
         out.writeLong(number);
         out.writeBoolean(playlist);
         out.writeBoolean(playlistSource);
+        writeUTF(group, out);
     }
 
     public static boolean isEmpty(String value) {
         return value == null || value.isEmpty();
+    }
+
+    /** Removes a shared leading prefix (at least two characters) from a title. */
+    public static String trimPrefix(String title, String prefix) {
+        if (isEmpty(title) || isEmpty(prefix)) return title;
+        int length = 0, max = Math.min(prefix.length(), title.length());
+        while (length < max && prefix.charAt(length) == title.charAt(length)) length++;
+        if (length < 2) return title;
+        String rest = title.substring(length).replaceFirst("^[\\s\\-–—·|:：]+", "").trim();
+        return rest.isEmpty() ? title : rest;
     }
 
     public static boolean equals(Object left, Object right) {
@@ -74,7 +87,8 @@ public class Channel implements Parcelable {
 
     public boolean equalsContent(Channel other) {
         return equals(other) && order == other.order && number == other.number && Objects.equals(title, other.title)
-                && playlistSource == other.playlistSource && Objects.equals(baseUrl, other.baseUrl);
+                && playlistSource == other.playlistSource && Objects.equals(group, other.group)
+                && Objects.equals(baseUrl, other.baseUrl);
     }
 
     private static void writeUTF(String value, DataOutput out) throws IOException {
@@ -89,6 +103,7 @@ public class Channel implements Parcelable {
         number = in.readLong();
         playlist = in.readByte() != 0;
         playlistSource = in.readByte() != 0;
+        group = Objects.toString(in.readString(), "");
         baseUrl = Objects.toString(in.readString(), "");
     }
 
@@ -104,6 +119,7 @@ public class Channel implements Parcelable {
         out.writeLong(number);
         out.writeByte(playlist ? (byte) 1 : 0);
         out.writeByte(playlistSource ? (byte) 1 : 0);
+        out.writeString(group);
         out.writeString(baseUrl);
     }
 
